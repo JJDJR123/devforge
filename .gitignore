@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+.tmp/
+release/
+shots/
+.env
+*.log
+.DS_Store
+Thumbs.db
+pnpm-debug.log*

@@ -1,0 +1,369 @@
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  FileText,
+  Globe2,
+  Menu,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react';
+import { api } from '../api';
+import { applyTheme } from '../theme';
+import type { PageMeta, PublicBootstrap } from '../types';
+import { cn, formatRelativeTime, getErrorMessage } from '../utils';
+import { BrandLockup, BrandMark } from '../components/BrandMark';
+import { SearchDialog } from '../components/SearchDialog';
+import { PublicHome } from './PublicHome';
+import { PublicModule } from './PublicModule';
+import { PublicPage } from './PublicPage';
+
+const COLLAPSE_KEY = 'devforge.public.collapsed';
+
+function readCollapsed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSE_KEY);
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+export function PublicApp({ preview = false }: { preview?: boolean }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [data, setData] = useState<PublicBootstrap | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await api.publicBootstrap();
+      setData(result);
+      applyTheme(result.theme);
+      try { localStorage.setItem('devforge.theme', JSON.stringify(result.theme)); } catch { /* ignore */ }
+      setLoading(false);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    document.title = `${data.site.name} · ${data.site.tagline}`;
+  }, [data]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  const searchSource = useMemo(
+    () => (data ? { modules: data.modules, recent: data.recent } : null),
+    [data],
+  );
+
+  if (loading) {
+    return (
+      <div className="public-loading-screen">
+        <BrandMark size={56} />
+        <span>DEVFORGE</span>
+        <em>正在打开公开学习舱…</em>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="boot-error-screen">
+        <div className="boot-error-card">
+          <BrandLockup compact />
+          <div className="boot-error-icon"><Globe2 size={26} /></div>
+          <h1>公开内容暂时无法加载</h1>
+          <p>{error || '服务器没有响应，请稍后再试。'}</p>
+          <button type="button" className="btn btn-primary" onClick={() => { void load(); }}>
+            <RefreshCw size={16} /> 重试
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const title = location.pathname.startsWith('/module/')
+    ? '模块'
+    : location.pathname.startsWith('/page/')
+      ? '页面'
+      : '总览';
+
+  return (
+    <div className={cn('app-shell public-shell', sidebarOpen && 'sidebar-open')}>
+      <PublicSidebar
+        data={data}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenSearch={() => setSearchOpen(true)}
+      />
+      {sidebarOpen ? <button type="button" className="sidebar-scrim" onClick={() => setSidebarOpen(false)} aria-label="关闭侧栏" /> : null}
+
+      <div className="app-main">
+        <header className="topbar public-topbar">
+          <div className="topbar-left">
+            <button type="button" className="icon-btn topbar-menu" onClick={() => setSidebarOpen(true)} aria-label="打开侧栏">
+              <Menu size={19} />
+            </button>
+            <div className="topbar-crumb">
+              <span className="crumb-root">公开站点</span>
+              <span className="crumb-sep">/</span>
+              <strong>{title}</strong>
+            </div>
+          </div>
+
+          <button type="button" className="topbar-search" onClick={() => setSearchOpen(true)}>
+            <Search size={15} />
+            <span>搜索公开内容</span>
+            <kbd>⌘ K</kbd>
+          </button>
+
+          <div className="topbar-right">
+            {preview ? (
+              <button
+                type="button"
+                className="public-preview-exit"
+                onClick={() => {
+                  sessionStorage.removeItem('devforge.preview');
+                  window.location.href = '/admin';
+                }}
+              >
+                返回管理 <ArrowLeft size={13} />
+              </button>
+            ) : (
+              <span className="public-topbar-badge"><Eye size={12} /> 只读浏览</span>
+            )}
+          </div>
+        </header>
+
+        <main className="app-view" key={location.pathname}>
+          <Routes>
+            <Route path="/" element={<PublicHome data={data} onOpenSearch={() => setSearchOpen(true)} />} />
+            <Route path="/module/:moduleId" element={<PublicModule data={data} />} />
+            <Route path="/page/:pageId" element={<PublicPage data={data} />} />
+            <Route path="/settings" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<PublicMissing />} />
+          </Routes>
+          <footer className="public-global-foot">
+            <span>DEVFORGE · 公开学习舱</span>
+            <span><Eye size={11} /> 只读浏览 · 内容由管理员维护</span>
+            {data.icp?.number ? (
+              <a href={data.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
+                {data.icp.number}
+              </a>
+            ) : null}
+          </footer>
+        </main>
+      </div>
+
+      <SearchDialog
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        publicMode
+        dataOverride={searchSource}
+        searchOverride={api.publicSearch}
+      />
+    </div>
+  );
+}
+
+function PublicSidebar({
+  data,
+  open,
+  onClose,
+  onOpenSearch,
+}: {
+  data: PublicBootstrap;
+  open: boolean;
+  onClose: () => void;
+  onOpenSearch: () => void;
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+  const modules = useMemo(
+    () => [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder),
+    [data.modules],
+  );
+  const pagesByParent = useMemo(() => {
+    const map = new Map<string, PageMeta[]>();
+    for (const page of data.pages) {
+      const key = page.parentId || `module:${page.moduleId}`;
+      const list = map.get(key) || [];
+      list.push(page);
+      map.set(key, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
+    return map;
+  }, [data.pages]);
+
+  useEffect(() => {
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed])); } catch { /* ignore */ }
+  }, [collapsed]);
+
+  function toggle(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function go(path: string) {
+    navigate(path);
+    onClose();
+  }
+
+  const activePageId = location.pathname.startsWith('/page/')
+    ? decodeURIComponent(location.pathname.slice('/page/'.length).split('/')[0] || '')
+    : '';
+
+  function renderPage(page: PageMeta, depth: number): ReactElement {
+    const children = pagesByParent.get(page.id) || [];
+    const key = `page:${page.id}`;
+    const isCollapsed = collapsed.has(key);
+    return (
+      <div key={page.id}>
+        <div className={cn('side-page-row', activePageId === page.id && 'is-active')} style={{ paddingLeft: 12 + depth * 14 }}>
+          {children.length ? (
+            <button type="button" className="side-collapse page-collapse" onClick={() => toggle(key)} aria-label={isCollapsed ? '展开子页面' : '收起子页面'}>
+              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+            </button>
+          ) : <span className="page-indent" />}
+          <button type="button" className="side-page-link" onClick={() => go(`/page/${page.id}`)}>
+            <span className="side-page-icon">{page.icon}</span>
+            <span className="side-page-title">{page.title}</span>
+          </button>
+        </div>
+        {!isCollapsed && children.map((child) => renderPage(child, depth + 1))}
+      </div>
+    );
+  }
+
+  return (
+    <aside className={cn('sidebar public-sidebar', open && 'is-open')}>
+      <div className="sidebar-head">
+        <button type="button" className="brand-button" onClick={() => go('/')} aria-label="公开首页">
+          <BrandLockup />
+        </button>
+        <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="关闭侧栏">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="public-side-label">
+        <span><Globe2 size={12} /> 公开学习舱</span>
+        <em>READ ONLY</em>
+      </div>
+
+      <div className="sidebar-actions">
+        <button type="button" className="search-box" onClick={onOpenSearch}>
+          <Search size={16} />
+          <span>搜索公开内容…</span>
+          <kbd>⌘ K</kbd>
+        </button>
+      </div>
+
+      <nav className="sidebar-nav" aria-label="公开导航">
+        <button type="button" className={cn('nav-item', location.pathname === '/' && 'is-active')} onClick={() => go('/')}>
+          <Globe2 size={16} />
+          <span>公开首页</span>
+        </button>
+      </nav>
+
+      <div className="sidebar-tree-head">
+        <span>学习模块</span>
+        <span className="tree-count">{modules.length}</span>
+      </div>
+
+      <div className="sidebar-tree">
+        {modules.length === 0 ? (
+          <div className="sidebar-empty">
+            <Globe2 size={22} />
+            <p>还没有公开模块</p>
+          </div>
+        ) : modules.map((module) => {
+          const key = `module:${module.id}`;
+          const isCollapsed = collapsed.has(key);
+          const rootPages = pagesByParent.get(key) || [];
+          const total = data.pages.filter((page) => page.moduleId === module.id).length;
+          return (
+            <div className="side-module" key={module.id}>
+              <div className="side-module-head">
+                <button type="button" className="side-collapse" onClick={() => toggle(key)} aria-label={isCollapsed ? '展开模块' : '收起模块'}>
+                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                </button>
+                <button type="button" className="side-module-link" onClick={() => go(`/module/${module.id}`)}>
+                  <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
+                    {module.icon}
+                  </span>
+                  <span className="side-module-name">{module.title}</span>
+                  <span className="side-module-count">{total}</span>
+                </button>
+              </div>
+              {!isCollapsed ? (
+                <div className="side-pages">
+                  {rootPages.length ? rootPages.map((page) => renderPage(page, 0)) : (
+                    <span className="side-page-empty">暂无公开页面</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="sidebar-foot public-sidebar-foot">
+        <div className="public-sidebar-note">
+          <Eye size={13} />
+          <span>只读浏览模式</span>
+        </div>
+        <div className="public-sidebar-note is-muted">
+          <FileText size={12} />
+          <span>内容由管理员维护</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function PublicMissing() {
+  const navigate = useNavigate();
+  return (
+    <div className="page-missing public-missing">
+      <div className="page-missing-icon"><Globe2 size={26} /></div>
+      <h1>这个页面不存在</h1>
+      <p>链接可能不完整，或者内容还没有公开。</p>
+      <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>回到公开首页</button>
+    </div>
+  );
+}

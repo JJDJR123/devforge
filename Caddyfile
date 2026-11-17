@@ -1,0 +1,20 @@
+# 可选：Docker + Caddy 配置
+# SITE_ADDRESS 在 .env 中设置。域名会自动申请 HTTPS；:80 表示纯 HTTP。
+
+{$SITE_ADDRESS} {
+    encode zstd gzip
+
+    request_body {
+        max_size 30MB
+    }
+
+    reverse_proxy app:3000
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+        X-Robots-Tag "noindex, nofollow, noarchive"
+        -Server
+    }
+}

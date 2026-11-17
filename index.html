@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN" data-preset="forge">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#0a0d0b" />
+    <meta
+      name="description"
+      content="DEVFORGE · 独立游戏开发学习舱。公开浏览独立游戏开发的学习模块、原型笔记和踩坑记录。"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DEVFORGE" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <title>DEVFORGE · 独立游戏开发学习舱</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #0a0d0b; }
+      .initial-loader {
+        min-height: 100vh; display: grid; place-items: center; color: #c8f76a;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif; letter-spacing: .18em;
+        font-size: 12px; background: radial-gradient(circle at 50% 40%, #142015 0, #0a0d0b 55%);
+      }
+      .initial-loader span { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="initial-loader"><span>DEVFORGE / 正在唤醒工作台</span></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

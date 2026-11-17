@@ -1,0 +1,14 @@
+node_modules
+dist
+data
+.tmp
+release
+shots
+.env
+.git
+.gitignore
+*.log
+tools/e2e.mjs
+tools/quickcheck.mjs
+tools/pagecheck.mjs
+tools/featurecheck.mjs

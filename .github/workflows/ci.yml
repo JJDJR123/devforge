@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Check backend syntax
+        run: |
+          for file in server/*.js; do
+            node --check "$file"
+          done
+
+      - name: Start server and check health
+        env:
+          DATA_DIR: .tmp/ci
+          SETUP_TOKEN: ci-token
+          PORT: 3101
+          LOG_LEVEL: warn
+        run: |
+          node server/index.js &
+          SERVER_PID=$!
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3101/api/health > /tmp/devforge-health.json; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/devforge-health.json || true
+          kill "$SERVER_PID" || true
+          if [ "$ok" != "1" ]; then
+            echo "SERVER_HEALTH_FAILED"
+            exit 1
+          fi
