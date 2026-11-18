@@ -21,6 +21,7 @@ import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
 import { DropdownMenu } from '../components/DropdownMenu';
 import { ModuleDialog } from '../components/ModuleDialog';
+import { ModuleIconContent } from '../components/ModuleIcon';
 import type { Module } from '../types';
 import {
   cn,
@@ -254,7 +255,7 @@ export function Dashboard() {
                     onClick={() => navigate(`/module/${module.id}`)}
                   >
                     <div className="module-card-head">
-                      <span className="module-icon">{module.icon}</span>
+                      <span className="module-icon"><ModuleIconContent module={module} /></span>
                       <DropdownMenu
                         trigger={(
                           <button type="button" className="icon-btn module-menu-btn" aria-label="模块菜单">

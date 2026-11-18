@@ -9,6 +9,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import type { PageMeta, PublicBootstrap } from '../types';
+import { ModuleIconContent } from '../components/ModuleIcon';
 import { formatNumber, formatRelativeTime } from '../utils';
 
 export function PublicModule({ data }: { data: PublicBootstrap }) {
@@ -109,7 +110,7 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
       <header className="module-hero" style={{ '--module-accent': module.accent } as CSSProperties}>
         <div className="module-hero-glow" aria-hidden="true" />
         <div className="module-hero-main">
-          <span className="module-hero-icon">{module.icon}</span>
+          <span className="module-hero-icon"><ModuleIconContent module={module} /></span>
           <div>
             <span className="eyebrow">MODULE / 公开学习模块</span>
             <h1>{module.title}</h1>
@@ -148,7 +149,7 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
                   style={{ '--module-accent': child.accent } as CSSProperties}
                   onClick={() => navigate(`/module/${child.id}`)}
                 >
-                  <span className="module-submodule-icon">{child.icon}</span>
+                  <span className="module-submodule-icon"><ModuleIconContent module={child} /></span>
                   <span className="module-submodule-text">
                     <strong>{child.title}</strong>
                     <em>{count} 张公开页面</em>

@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
-import { Layers, Loader2, X } from 'lucide-react';
+import { Layers, Loader2, Upload, X } from 'lucide-react';
 import type { Module } from '../types';
 import { api } from '../api';
 import { useApp } from '../state/AppContext';
@@ -7,6 +7,7 @@ import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { EmojiPicker } from './EmojiPicker';
 import { ACCENT_SWATCHES } from '../theme';
+import { resizeImageFile } from '../image';
 import { cn, getErrorMessage } from '../utils';
 
 export function ModuleDialog({
@@ -28,24 +29,43 @@ export function ModuleDialog({
   const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [icon, setIcon] = useState('🎮');
+  const [iconUrl, setIconUrl] = useState('');
   const [accent, setAccent] = useState('#c8f76a');
   const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setTitle(module?.title || '');
     setIcon(module?.icon || '🎮');
+    setIconUrl(module?.iconUrl || '');
     setAccent(module?.accent || '#c8f76a');
     setIsPublic(module ? module.isPublic : true);
     setError('');
     setBusy(false);
+    setUploading(false);
   }, [open, module]);
+
+  async function uploadIcon(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const prepared = await resizeImageFile(file, 256, 0.86);
+      const result = await api.upload(prepared);
+      setIconUrl(result.url);
+    } catch (uploadError) {
+      setError(getErrorMessage(uploadError));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || uploading) return;
     if (!title.trim()) {
       setError('给模块起一个名字。');
       return;
@@ -54,10 +74,11 @@ export function ModuleDialog({
     setError('');
     try {
       const result = module
-        ? await api.updateModule(module.id, { title: title.trim(), icon, accent, isPublic })
+        ? await api.updateModule(module.id, { title: title.trim(), icon, iconUrl, accent, isPublic })
         : await api.createModule({
           title: title.trim(),
           icon,
+          iconUrl,
           accent,
           isPublic,
           parentId: parentId || null,
@@ -101,7 +122,28 @@ export function ModuleDialog({
 
             <div className="field">
               <span className="field-label">选择图标</span>
-              <EmojiPicker value={icon} onChange={setIcon} compact />
+              <EmojiPicker
+                value={icon}
+                onChange={(value) => { setIcon(value); setIconUrl(''); }}
+                compact
+              />
+              <div className="module-icon-upload-row">
+                <label className="btn btn-ghost btn-sm module-icon-upload">
+                  <Upload size={14} /> {uploading ? '上传中…' : '上传自定义图标'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(event) => { void uploadIcon(event.target.files?.[0]); event.target.value = ''; }}
+                    disabled={uploading}
+                  />
+                </label>
+                {iconUrl ? (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setIconUrl('')}>
+                    恢复 emoji
+                  </button>
+                ) : null}
+              </div>
+              <p className="field-hint">上传图片后，这张图会自动压缩成最大 256×256，并成为模块在侧栏、卡片和公开站的小图标。</p>
             </div>
 
             <div className="field">
@@ -148,7 +190,9 @@ export function ModuleDialog({
           <div className="module-preview-wrap">
             <span className="field-label">预览</span>
             <div className="module-preview" style={{ '--module-accent': accent } as CSSProperties}>
-              <div className="module-preview-icon">{icon}</div>
+              <div className="module-preview-icon">
+                {iconUrl ? <img className="module-custom-icon" src={iconUrl} alt="" /> : icon}
+              </div>
               <div>
                 <strong>{title.trim() || '你的模块'}</strong>
                 <span>{isPublic ? '公开 · 0 个页面' : '私密 · 0 个页面'}</span>
@@ -167,7 +211,7 @@ export function ModuleDialog({
 
         <footer className="modal-foot">
           <button type="button" className="btn btn-ghost" onClick={onClose}>取消</button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy || uploading}>
             {busy ? <Loader2 size={16} className="spin" /> : null}
             {busy ? '保存中…' : '保存模块'}
           </button>

@@ -17,6 +17,7 @@ import { applyTheme } from '../theme';
 import type { Module, PageMeta, PublicBootstrap } from '../types';
 import { cn, formatRelativeTime, getErrorMessage } from '../utils';
 import { BrandLockup, BrandMark } from '../components/BrandMark';
+import { ModuleIconContent } from '../components/ModuleIcon';
 import { SearchDialog } from '../components/SearchDialog';
 import { PublicHome } from './PublicHome';
 import { PublicModule } from './PublicModule';
@@ -298,7 +299,7 @@ function PublicSidebar({
           </button>
           <button type="button" className="side-module-link" onClick={() => go(`/module/${module.id}`)}>
             <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
-              {module.icon}
+              <ModuleIconContent module={module} />
             </span>
             <span className="side-module-name">{module.title}</span>
             <span className="side-module-count">{pages.length + children.length}</span>

@@ -33,6 +33,7 @@ import {
   presetAccent,
 } from '../theme';
 import { cn, formatNumber, getErrorMessage } from '../utils';
+import { resizeImageFile } from '../image';
 
 type Tab = 'appearance' | 'site' | 'account' | 'data' | 'about';
 
@@ -395,7 +396,8 @@ function SitePanel() {
     setUploading(true);
     setError('');
     try {
-      const result = await api.upload(file);
+      const prepared = await resizeImageFile(file, 512, 0.9);
+      const result = await api.upload(prepared);
       setLogoUrl(result.url);
     } catch (uploadError) {
       setError(getErrorMessage(uploadError));
@@ -481,7 +483,7 @@ function SitePanel() {
                   恢复默认图标
                 </button>
               ) : null}
-              <span className="field-hint">建议 1:1 方形 PNG / WebP，最大 25MB。</span>
+              <span className="field-hint">会自动压缩成最大 512×512 的 WebP；建议 1:1 方形 PNG。</span>
             </div>
           </div>
 

@@ -25,6 +25,7 @@ import { useApp } from '../state/AppContext';
 import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
 import { BrandLockup } from './BrandMark';
+import { ModuleIconContent } from './ModuleIcon';
 import { Avatar } from './Avatar';
 import { DropdownMenu, type MenuItem } from './DropdownMenu';
 import { ModuleDialog } from './ModuleDialog';
@@ -394,7 +395,7 @@ function ModuleNode({
         </button>
         <button type="button" className="side-module-link" onClick={() => onToggle(key)}>
           <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
-            {module.icon}
+            <ModuleIconContent module={module} />
           </span>
           <span className="side-module-name">{module.title}</span>
           {!module.isPublic ? <Lock size={10} className="side-private-mark" aria-label="私密模块" /> : null}

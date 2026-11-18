@@ -117,6 +117,15 @@ const cleanAccent = (value, fallback = '#c8f76a') => {
   return /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : fallback;
 };
 
+const cleanAssetUrl = (value) => {
+  const url = String(value ?? '').trim();
+  if (!url) return '';
+  if (url.startsWith('/api/assets/') || url.startsWith('/api/public/assets/') || /^https:\/\//i.test(url)) {
+    return url.slice(0, 500);
+  }
+  return '';
+};
+
 const cleanBool = (value, fallback = true) => {
   if (typeof value === 'boolean') return value;
   if (value === 1 || value === '1' || value === 'true') return true;
@@ -375,6 +384,7 @@ app.post('/api/modules', { preHandler: requireAuth }, async (req, reply) => {
   const module = createModule({
     title: cleanTitle(body.title, '新模块'),
     icon: cleanIcon(body.icon, '🎮'),
+    iconUrl: cleanAssetUrl(body.iconUrl),
     accent: cleanAccent(body.accent),
     isPublic: cleanBool(body.isPublic, true),
     parentId,
@@ -389,6 +399,7 @@ app.patch('/api/modules/:id', { preHandler: requireAuth }, async (req, reply) =>
     const module = updateModule(req.params.id, {
       ...(body.title !== undefined ? { title: cleanTitle(body.title, '新模块') } : {}),
       ...(body.icon !== undefined ? { icon: cleanIcon(body.icon, '🎮') } : {}),
+      ...(body.iconUrl !== undefined ? { iconUrl: cleanAssetUrl(body.iconUrl) } : {}),
       ...(body.accent !== undefined ? { accent: cleanAccent(body.accent) } : {}),
       ...(body.isPublic !== undefined ? { isPublic: cleanBool(body.isPublic, true) } : {}),
       ...(body.parentId !== undefined ? { parentId: body.parentId || null } : {}),

@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { PublicBootstrap } from '../types';
+import { ModuleIconContent } from '../components/ModuleIcon';
 import { formatNumber, formatRelativeTime, todayLabel } from '../utils';
 
 export function PublicHome({
@@ -147,7 +148,7 @@ export function PublicHome({
                     onClick={() => navigate(`/module/${module.id}`)}
                   >
                     <div className="module-card-head">
-                      <span className="module-icon">{module.icon}</span>
+                      <span className="module-icon"><ModuleIconContent module={module} /></span>
                       <span className="public-mini-badge"><Eye size={11} /> 公开</span>
                     </div>
                     <h3>{module.title}</h3>

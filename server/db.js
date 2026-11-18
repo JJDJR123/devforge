@@ -135,6 +135,15 @@ function migrate() {
     }
     db.exec('CREATE INDEX IF NOT EXISTS idx_modules_parent ON modules(parent_id, sort_order)');
     db.exec('PRAGMA user_version = 4');
+    version = 4;
+  }
+
+  if (version < 5) {
+    const moduleColumns = db.prepare('PRAGMA table_info(modules)').all().map((column) => column.name);
+    if (!moduleColumns.includes('icon_url')) {
+      db.exec("ALTER TABLE modules ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
+    }
+    db.exec('PRAGMA user_version = 5');
   }
 
   const stamp = now();
@@ -215,6 +224,7 @@ const moduleFromRow = (row) => row && ({
   parentId: row.parent_id || null,
   title: row.title,
   icon: row.icon,
+  iconUrl: row.icon_url || '',
   accent: row.accent,
   isPublic: row.is_public !== 0,
   sortOrder: row.sort_order,
@@ -248,7 +258,14 @@ function publicModuleIdSet() {
 export function listPublicModules() {
   const modules = listModules();
   const byId = new Map(modules.map((module) => [module.id, module]));
-  return modules.filter((module) => isModuleEffectivelyPublic(module.id, byId));
+  return modules
+    .filter((module) => isModuleEffectivelyPublic(module.id, byId))
+    .map((module) => ({
+      ...module,
+      iconUrl: module.iconUrl.startsWith('/api/assets/')
+        ? module.iconUrl.replace('/api/assets/', '/api/public/assets/')
+        : module.iconUrl,
+    }));
 }
 
 export function getModule(id) {
@@ -267,7 +284,7 @@ function isModuleDescendant(candidateId, ancestorId) {
   return false;
 }
 
-export function createModule({ title, icon = '🎮', accent = '#c8f76a', isPublic = true, parentId = null }) {
+export function createModule({ title, icon = '🎮', iconUrl = '', accent = '#c8f76a', isPublic = true, parentId = null }) {
   if (parentId && !getModule(parentId)) throw new Error('PARENT_NOT_FOUND');
   const id = uid();
   const stamp = now();
@@ -276,9 +293,9 @@ export function createModule({ title, icon = '🎮', accent = '#c8f76a', isPubli
     WHERE parent_id IS ?
   `).get(parentId).n;
   db.prepare(`
-    INSERT INTO modules (id, parent_id, title, icon, accent, is_public, sort_order, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, parentId, title, icon, accent, isPublic ? 1 : 0, order, stamp, stamp);
+    INSERT INTO modules (id, parent_id, title, icon, icon_url, accent, is_public, sort_order, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, parentId, title, icon, iconUrl, accent, isPublic ? 1 : 0, order, stamp, stamp);
   return getModule(id);
 }
 
@@ -289,6 +306,7 @@ export function updateModule(id, patch) {
   const values = [];
   if (typeof patch.title === 'string') { fields.push('title = ?'); values.push(patch.title); }
   if (typeof patch.icon === 'string') { fields.push('icon = ?'); values.push(patch.icon); }
+  if (typeof patch.iconUrl === 'string') { fields.push('icon_url = ?'); values.push(patch.iconUrl); }
   if (typeof patch.accent === 'string') { fields.push('accent = ?'); values.push(patch.accent); }
   if (typeof patch.isPublic === 'boolean') { fields.push('is_public = ?'); values.push(patch.isPublic ? 1 : 0); }
   if (patch.parentId !== undefined) {
@@ -438,6 +456,7 @@ export function getPageBreadcrumb(id) {
       id: moduleCursor.id,
       title: moduleCursor.title,
       icon: moduleCursor.icon,
+      iconUrl: moduleCursor.iconUrl,
     });
     moduleCursor = moduleCursor.parentId ? getModule(moduleCursor.parentId) : null;
   }
@@ -450,7 +469,7 @@ export function getPageBreadcrumb(id) {
     cursor = cursor.parentId ? getPage(cursor.parentId) : null;
   }
   return {
-    module: module ? { id: module.id, title: module.title, icon: module.icon } : null,
+    module: module ? { id: module.id, title: module.title, icon: module.icon, iconUrl: module.iconUrl } : null,
     moduleChain,
     pages: chain,
   };

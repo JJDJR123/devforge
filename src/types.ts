@@ -24,6 +24,7 @@ export type Module = {
   parentId: string | null;
   title: string;
   icon: string;
+  iconUrl: string;
   accent: string;
   isPublic: boolean;
   sortOrder: number;
@@ -58,8 +59,8 @@ export type Page = PageMeta & {
 };
 
 export type Breadcrumb = {
-  module: { id: string; title: string; icon: string } | null;
-  moduleChain?: { id: string; title: string; icon: string }[];
+  module: { id: string; title: string; icon: string; iconUrl?: string } | null;
+  moduleChain?: { id: string; title: string; icon: string; iconUrl?: string }[];
   pages: { id: string; title: string; icon: string }[];
 };
 

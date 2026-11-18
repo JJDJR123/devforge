@@ -132,10 +132,10 @@ export const api = {
       },
     ),
 
-  createModule: (input: { title: string; icon: string; accent: string; isPublic?: boolean; parentId?: string | null }) =>
+  createModule: (input: { title: string; icon: string; iconUrl?: string; accent: string; isPublic?: boolean; parentId?: string | null }) =>
     request<{ module: Module }>('/api/modules', { method: 'POST', body: input }),
 
-  updateModule: (id: string, input: { title?: string; icon?: string; accent?: string; isPublic?: boolean; parentId?: string | null }) =>
+  updateModule: (id: string, input: { title?: string; icon?: string; iconUrl?: string; accent?: string; isPublic?: boolean; parentId?: string | null }) =>
     request<{ module: Module }>(`/api/modules/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: input,

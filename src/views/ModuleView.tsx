@@ -22,6 +22,7 @@ import { useApp } from '../state/AppContext';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
 import { ModuleDialog } from '../components/ModuleDialog';
+import { ModuleIconContent } from '../components/ModuleIcon';
 import { DropdownMenu } from '../components/DropdownMenu';
 import type { PageMeta } from '../types';
 import { cn, formatNumber, formatRelativeTime, getErrorMessage } from '../utils';
@@ -258,7 +259,7 @@ export function ModuleView() {
       <header className="module-hero" style={{ '--module-accent': module.accent } as CSSProperties}>
         <div className="module-hero-glow" aria-hidden="true" />
         <div className="module-hero-main">
-          <span className="module-hero-icon">{module.icon}</span>
+          <span className="module-hero-icon"><ModuleIconContent module={module} /></span>
           <div>
             <span className="eyebrow">MODULE / 学习模块</span>
             <h1>{module.title} <span className={cn('module-public-state', module.isPublic ? 'is-public' : 'is-private')}>{module.isPublic ? '公开' : '私密'}</span></h1>
@@ -327,7 +328,7 @@ export function ModuleView() {
                   style={{ '--module-accent': child.accent } as CSSProperties}
                   onClick={() => navigate(`/module/${child.id}`)}
                 >
-                  <span className="module-submodule-icon">{child.icon}</span>
+                  <span className="module-submodule-icon"><ModuleIconContent module={child} /></span>
                   <span className="module-submodule-text">
                     <strong>{child.title}</strong>
                     <em>{directPages} 张页面{hiddenByParent ? ' · 私密' : ''}</em>
