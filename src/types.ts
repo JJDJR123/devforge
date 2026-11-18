@@ -15,9 +15,30 @@ export type AISource = {
   icon: string;
 };
 
+export type AIConversation = {
+  id: string;
+  title: string;
+  pageId: string | null;
+  summary: string;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AIMessage = {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources: AISource[];
+  createdAt: string;
+};
+
 export type AIChatResponse = {
+  conversationId: string;
   answer: string;
   sources: AISource[];
+  summary?: string;
 };
 
 export type Theme = {

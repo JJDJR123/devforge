@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==========================================================================
 # DEVFORGE - 每日备份
-# 备份 SQLite 数据库快照 + uploads 上传目录，保留最近 14 天。
+# 备份 SQLite 数据库快照 + uploads 上传目录 + AI 对话日志，保留最近 14 天。
 #
 # 使用：
 #   sudo bash /opt/devforge/deploy/backup.sh
@@ -37,15 +37,23 @@ else
   exit 1
 fi
 
-echo "[2/2] 打包 uploads..."
+echo "[2/3] 打包 uploads..."
 if [[ -d "${DATA_DIR}/uploads" ]]; then
   runuser -u "${APP_USER}" -- tar -czf "${BACKUP_DIR}/uploads-${STAMP}.tar.gz" -C "${DATA_DIR}" uploads
 else
   echo "没有 uploads 目录，跳过。"
 fi
 
-# 保留最近 14 天的 uploads 压缩包；数据库快照由 server/backup.js 保留 14 份。
+echo "[3/3] 打包 AI 对话日志..."
+if [[ -d "${DATA_DIR}/ai-logs" ]]; then
+  runuser -u "${APP_USER}" -- tar -czf "${BACKUP_DIR}/ai-logs-${STAMP}.tar.gz" -C "${DATA_DIR}" ai-logs
+else
+  echo "没有 ai-logs 目录，跳过。"
+fi
+
+# 保留最近 14 天的 uploads / ai-logs 压缩包；数据库快照由 server/backup.js 保留 14 份。
 find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'uploads-*.tar.gz' -mtime +14 -delete
+find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'ai-logs-*.tar.gz' -mtime +14 -delete
 
 echo
 echo "备份完成："

@@ -144,6 +144,31 @@ function migrate() {
       db.exec("ALTER TABLE modules ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''");
     }
     db.exec('PRAGMA user_version = 5');
+    version = 5;
+  }
+
+  if (version < 6) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        page_id TEXT,
+        summary TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS ai_messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        sources TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages(conversation_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated ON ai_conversations(updated_at DESC);
+      PRAGMA user_version = 6;
+    `);
   }
 
   const stamp = now();
@@ -558,6 +583,95 @@ export function reorderPages(ids, moduleId, parentId = null) {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* AI conversations                                                    */
+/* ------------------------------------------------------------------ */
+
+const aiConversationFromRow = (row) => row && ({
+  id: row.id,
+  title: row.title,
+  pageId: row.page_id || null,
+  summary: row.summary || '',
+  messageCount: row.message_count ?? 0,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const aiMessageFromRow = (row) => {
+  let sources = [];
+  try { sources = JSON.parse(row.sources || '[]'); } catch { sources = []; }
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    role: row.role,
+    content: row.content,
+    sources: Array.isArray(sources) ? sources : [],
+    createdAt: row.created_at,
+  };
+};
+
+export function createAIConversation({ title = '新对话', pageId = null } = {}) {
+  const id = uid();
+  const stamp = now();
+  db.prepare(`
+    INSERT INTO ai_conversations (id, title, page_id, summary, created_at, updated_at)
+    VALUES (?, ?, ?, '', ?, ?)
+  `).run(id, String(title).trim().slice(0, 80) || '新对话', pageId || null, stamp, stamp);
+  return getAIConversation(id);
+}
+
+export function listAIConversations(limit = 40) {
+  return db.prepare(`
+    SELECT c.*, (SELECT COUNT(*) FROM ai_messages m WHERE m.conversation_id = c.id) AS message_count
+    FROM ai_conversations c
+    ORDER BY c.updated_at DESC
+    LIMIT ?
+  `).all(Math.min(100, Math.max(1, Number(limit) || 40))).map(aiConversationFromRow);
+}
+
+export function getAIConversation(id) {
+  const row = db.prepare(`
+    SELECT c.*, (SELECT COUNT(*) FROM ai_messages m WHERE m.conversation_id = c.id) AS message_count
+    FROM ai_conversations c WHERE c.id = ?
+  `).get(id);
+  return aiConversationFromRow(row);
+}
+
+export function listAIMessages(conversationId) {
+  return db.prepare(`
+    SELECT * FROM ai_messages
+    WHERE conversation_id = ?
+    ORDER BY created_at ASC, rowid ASC
+  `).all(conversationId).map(aiMessageFromRow);
+}
+
+export function addAIMessage({ conversationId, role, content, sources = [] }) {
+  const id = uid();
+  const stamp = now();
+  db.prepare(`
+    INSERT INTO ai_messages (id, conversation_id, role, content, sources, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, conversationId, role, content, JSON.stringify(sources), stamp);
+  db.prepare('UPDATE ai_conversations SET updated_at = ? WHERE id = ?').run(stamp, conversationId);
+  return aiMessageFromRow(db.prepare('SELECT * FROM ai_messages WHERE id = ?').get(id));
+}
+
+export function updateAIConversation(id, patch) {
+  const fields = [];
+  const values = [];
+  if (typeof patch.title === 'string') { fields.push('title = ?'); values.push(patch.title.trim().slice(0, 80) || '新对话'); }
+  if (typeof patch.summary === 'string') { fields.push('summary = ?'); values.push(patch.summary.trim().slice(0, 6000)); }
+  if (!fields.length) return getAIConversation(id);
+  fields.push('updated_at = ?');
+  values.push(now(), id);
+  db.prepare(`UPDATE ai_conversations SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getAIConversation(id);
+}
+
+export function deleteAIConversation(id) {
+  return db.prepare('DELETE FROM ai_conversations WHERE id = ?').run(id).changes > 0;
 }
 
 /* ------------------------------------------------------------------ */

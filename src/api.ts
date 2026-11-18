@@ -1,6 +1,8 @@
 import type {
   AuthStatus,
   AIChatResponse,
+  AIConversation,
+  AIMessage,
   AIStatus,
   BlockRecord,
   Bootstrap,
@@ -104,7 +106,17 @@ export const api = {
 
   aiStatus: () => request<AIStatus>('/api/ai/status'),
 
-  aiChat: (input: { message: string; pageId?: string | null }) =>
+  aiConversations: () => request<{ conversations: AIConversation[] }>('/api/ai/conversations'),
+
+  aiConversation: (id: string) =>
+    request<{ conversation: AIConversation; messages: AIMessage[] }>(
+      `/api/ai/conversations/${encodeURIComponent(id)}`,
+    ),
+
+  deleteAIConversation: (id: string) =>
+    request<{ ok: boolean }>(`/api/ai/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  aiChat: (input: { message: string; pageId?: string | null; conversationId?: string | null }) =>
     request<AIChatResponse>('/api/ai/chat', { method: 'POST', body: input }),
 
   publicBootstrap: () => request<PublicBootstrap>('/api/public/bootstrap'),

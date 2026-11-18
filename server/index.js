@@ -45,11 +45,13 @@ import {
   createUser,
   databaseSize,
   db,
+  deleteAIConversation,
   deleteExpiredSessions,
   deleteModule,
   deleteOtherSessions,
   deletePage,
   exportAll,
+  getAIConversation,
   getAsset,
   getBootstrap,
   getModule,
@@ -61,6 +63,8 @@ import {
   getUserById,
   getUserByUsername,
   getTheme,
+  listAIConversations,
+  listAIMessages,
   listModules,
   moduleSubtreeIds,
   reorderModules,
@@ -511,11 +515,26 @@ app.post('/api/pages/reorder', { preHandler: requireAuth }, async (req, reply) =
 
 app.get('/api/ai/status', { preHandler: requireAuth }, async () => getAIStatus());
 
+app.get('/api/ai/conversations', { preHandler: requireAuth }, async () => ({
+  conversations: listAIConversations(40),
+}));
+
+app.get('/api/ai/conversations/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const conversation = getAIConversation(req.params.id);
+  if (!conversation) return fail(reply, 404, 'NOT_FOUND', '这段对话不存在。');
+  return { conversation, messages: listAIMessages(conversation.id) };
+});
+
+app.delete('/api/ai/conversations/:id', { preHandler: requireAuth }, async (req) => ({
+  ok: deleteAIConversation(req.params.id),
+}));
+
 app.post('/api/ai/chat', { preHandler: requireAuth }, async (req, reply) => {
   const message = String(req.body?.message || '').trim();
   const pageId = typeof req.body?.pageId === 'string' ? req.body.pageId : null;
+  const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : null;
   try {
-    const result = await chatWithAI({ message, pageId });
+    const result = await chatWithAI({ message, pageId, conversationId });
     return result;
   } catch (error) {
     if (error instanceof AIError) {
