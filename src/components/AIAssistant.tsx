@@ -40,6 +40,7 @@ export function AIAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [modelBusy, setModelBusy] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +121,20 @@ export function AIAssistant() {
     setError('');
   }
 
+  async function changeModel(model: string) {
+    if (modelBusy || model === status?.model) return;
+    setModelBusy(true);
+    setError('');
+    try {
+      const next = await api.setAIModel(model);
+      setStatus(next);
+    } catch (changeError) {
+      setError(getErrorMessage(changeError));
+    } finally {
+      setModelBusy(false);
+    }
+  }
+
   async function send(text?: string) {
     const question = (text ?? input).trim();
     if (!question || busy) return;
@@ -164,7 +179,7 @@ export function AIAssistant() {
               <span className="ai-head-mark"><Bot size={17} /></span>
               <div>
                 <strong>AI 助手</strong>
-                <span>{status?.configured ? `${status.provider} · ${status.model}` : '等待配置'}</span>
+                <span>{status?.configured ? `${status.provider} · 模型可切换` : '等待配置'}</span>
               </div>
             </div>
             <div className="ai-head-actions">
@@ -185,6 +200,33 @@ export function AIAssistant() {
               </button>
             </div>
           </header>
+
+          {showingChat && status ? (
+            <div className="ai-model-bar">
+              <label htmlFor="ai-model-select">模型</label>
+              <select
+                id="ai-model-select"
+                value={status.model}
+                onChange={(event) => { void changeModel(event.target.value); }}
+                disabled={modelBusy || busy}
+              >
+                {(status.models?.length ? status.models : [status.model]).map((model) => (
+                  <option key={model} value={model}>
+                    {model === 'deepseek-flash'
+                      ? 'DeepSeek V4.1 Flash（通用）'
+                      : model === 'deepseek-v4-pro'
+                        ? 'DeepSeek V4 Pro（推理）'
+                        : model === 'deepseek-chat'
+                          ? 'DeepSeek Chat（旧名）'
+                          : model === 'deepseek-reasoner'
+                            ? 'DeepSeek Reasoner（旧名）'
+                            : model}
+                  </option>
+                ))}
+              </select>
+              <span>{modelBusy ? '切换中…' : '下一轮生效'}</span>
+            </div>
+          ) : null}
 
           {historyOpen ? (
             <div className="ai-history">

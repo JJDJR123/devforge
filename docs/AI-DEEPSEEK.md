@@ -26,7 +26,8 @@ sudo nano /opt/devforge/.env
 # DeepSeek AI 助手
 AI_API_KEY=sk-你的key
 AI_BASE_URL=https://api.deepseek.com
-AI_MODEL=deepseek-chat
+AI_MODEL=deepseek-flash
+AI_MODELS=deepseek-flash,deepseek-v4-pro
 AI_MAX_TOKENS=1200
 ```
 
@@ -61,7 +62,7 @@ http://8.166.135.9:8080/admin
 
 点开它会看到：
 
-- 当前状态：`DeepSeek · deepseek-chat`
+- 当前状态：`DeepSeek · 模型可切换`
 - 输入框
 - 「总结当前页面」
 - 「根据我的笔记回答」
@@ -121,21 +122,29 @@ http://8.166.135.9:8080/admin
 - 不要把密码、身份证、银行卡、API Key 等敏感信息写进笔记后再让 AI 读取。
 - AI 结果可能出错，涉及命令、备份、账号操作时请核对原文。
 
-## 8. 换模型
+## 8. 切换模型
 
-默认：
+现在可以直接在 AI 面板里切换：
 
-```env
-AI_MODEL=deepseek-chat
+```text
+模型 [ DeepSeek V4.1 Flash（通用） ▾ ]
 ```
 
-想换推理模型可以改成：
+默认允许两个：
 
 ```env
-AI_MODEL=deepseek-reasoner
+AI_MODEL=deepseek-flash
+AI_MODELS=deepseek-flash,deepseek-v4-pro
 ```
 
-改完重启服务。推理模型更慢，费用也可能不同。
+| 模型 | 适合 | 取舍 |
+| --- | --- | --- |
+| `deepseek-flash` | 日常问答、总结、整理笔记 | 快、便宜，支持图片输入 |
+| `deepseek-v4-pro` | 复杂推理、长文规划、难问题 | 更慢、更贵，不支持图片 |
+
+建议只保留这两个，不要把所有模型都塞进去。切换后会保存到本地设置，**下一轮对话**使用新模型，当前会话不会丢失。
+
+想增加别的兼容模型：在 `.env` 的 `AI_MODELS` 里加逗号分隔的模型名，重启 `devforge` 后下拉框会出现。模型名必须在白名单里。
 
 ## 9. 为什么不会和 Git 冲突
 

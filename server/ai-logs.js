@@ -41,7 +41,7 @@ export function rebuildAILogIndex() {
   fs.writeFileSync(path.join(AI_LOG_DIR, 'index.md'), `${lines.join('\n')}\n`, 'utf8');
 }
 
-export function appendAILog(conversation, userText, assistantText, sources = []) {
+export function appendAILog(conversation, userText, assistantText, sources = [], model = '') {
   try {
     ensureDir();
     const file = fileFor(conversation.id);
@@ -54,6 +54,7 @@ export function appendAILog(conversation, userText, assistantText, sources = [])
         `- 会话 ID：\`${conversation.id}\``,
         `- 创建时间：${conversation.createdAt || stamp()}`,
         conversation.pageId ? `- 起始页面 ID：\`${conversation.pageId}\`` : '',
+        model ? `- 最近使用模型：\`${model}\`` : '',
         '',
         '> 本文件是本地对话日志。上下文窗口会使用摘要 + 最近消息 + 相关页面，而不是全文回灌。',
         '',
@@ -67,7 +68,7 @@ export function appendAILog(conversation, userText, assistantText, sources = [])
       '',
       userText,
       '',
-      `## ${stamp()} · AI`,
+      `## ${stamp()} · AI${model ? `（${model}）` : ''}`,
       '',
       assistantText,
       '',

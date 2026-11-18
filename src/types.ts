@@ -6,6 +6,7 @@ export type User = {
 export type AIStatus = {
   configured: boolean;
   model: string;
+  models: string[];
   provider: string;
 };
 
@@ -38,6 +39,7 @@ export type AIChatResponse = {
   conversationId: string;
   answer: string;
   sources: AISource[];
+  model?: string;
   summary?: string;
 };
 

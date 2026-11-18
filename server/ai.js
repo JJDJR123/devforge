@@ -3,16 +3,19 @@ import {
   AI_BASE_URL,
   AI_MAX_TOKENS,
   AI_MODEL,
+  AI_MODELS,
 } from './config.js';
 import {
   addAIMessage,
   createAIConversation,
   getAIConversation,
   getPage,
+  getSetting,
   getSiteSettings,
   listAIMessages,
   listRecentPages,
   searchPages,
+  setSetting,
   updateAIConversation,
 } from './db.js';
 import { appendAILog, appendAISummary } from './ai-logs.js';
@@ -101,7 +104,7 @@ function buildContext(question, pageId) {
   };
 }
 
-async function callDeepSeek(messages) {
+async function callDeepSeek(messages, model = getAIModel()) {
   if (!AI_API_KEY) {
     throw new AIError(
       'AI_NOT_CONFIGURED',
@@ -119,7 +122,7 @@ async function callDeepSeek(messages) {
         Authorization: `Bearer ${AI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: AI_MODEL,
+        model,
         messages,
         temperature: 0.3,
         max_tokens: AI_MAX_TOKENS,
@@ -152,11 +155,26 @@ async function callDeepSeek(messages) {
   return content.trim();
 }
 
+export function getAIModel() {
+  const stored = getSetting('ai_model', AI_MODEL);
+  return AI_MODELS.includes(stored) ? stored : AI_MODEL;
+}
+
+export function setAIModel(model) {
+  const value = String(model || '').trim();
+  if (!AI_MODELS.includes(value)) {
+    throw new AIError('MODEL_NOT_ALLOWED', '这个模型不在允许列表里。', 400);
+  }
+  setSetting('ai_model', value);
+  return getAIStatus();
+}
+
 export function getAIStatus() {
   return {
     configured: Boolean(AI_API_KEY),
-    model: AI_MODEL,
     provider: 'DeepSeek',
+    model: getAIModel(),
+    models: AI_MODELS,
   };
 }
 
@@ -245,11 +263,12 @@ export async function chatWithAI({ message, pageId, conversationId }) {
     context ? `\n以下是相关笔记内容：\n${context}` : '\n（没有找到相关笔记内容）',
   ].join('\n');
 
+  const model = getAIModel();
   const answer = await callDeepSeek([
     { role: 'system', content: system },
     ...history,
     { role: 'user', content: user },
-  ]);
+  ], model);
 
   addAIMessage({ conversationId: conversation.id, role: 'user', content: question });
   addAIMessage({
@@ -263,7 +282,7 @@ export async function chatWithAI({ message, pageId, conversationId }) {
   if (updated && updated.title === '新对话' && !previousMessages.length) {
     updateAIConversation(conversation.id, { title: question.slice(0, 40) });
   }
-  appendAILog(conversation, question, answer, sources);
+  appendAILog(conversation, question, answer, sources, model);
 
   const count = updated?.messageCount || previousMessages.length + 2;
   if (count >= 10 && count % 10 === 0) {
@@ -277,6 +296,7 @@ export async function chatWithAI({ message, pageId, conversationId }) {
     conversationId: conversation.id,
     answer,
     sources,
+    model,
     summary: updated?.summary || summary,
   };
 }

@@ -106,6 +106,9 @@ export const api = {
 
   aiStatus: () => request<AIStatus>('/api/ai/status'),
 
+  setAIModel: (model: string) =>
+    request<AIStatus>('/api/ai/model', { method: 'PUT', body: { model } }),
+
   aiConversations: () => request<{ conversations: AIConversation[] }>('/api/ai/conversations'),
 
   aiConversation: (id: string) =>

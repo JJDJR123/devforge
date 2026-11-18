@@ -80,7 +80,7 @@ import {
   updateSiteSettings,
   updateUsername,
 } from './db.js';
-import { chatWithAI, AIError, getAIStatus } from './ai.js';
+import { chatWithAI, AIError, getAIStatus, setAIModel } from './ai.js';
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || 'info' },
@@ -514,6 +514,15 @@ app.post('/api/pages/reorder', { preHandler: requireAuth }, async (req, reply) =
 });
 
 app.get('/api/ai/status', { preHandler: requireAuth }, async () => getAIStatus());
+
+app.put('/api/ai/model', { preHandler: requireAuth }, async (req, reply) => {
+  try {
+    return setAIModel(req.body?.model);
+  } catch (error) {
+    if (error instanceof AIError) return fail(reply, error.status, error.code, error.message);
+    throw error;
+  }
+});
 
 app.get('/api/ai/conversations', { preHandler: requireAuth }, async () => ({
   conversations: listAIConversations(40),
