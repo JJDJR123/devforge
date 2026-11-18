@@ -497,7 +497,7 @@ function DataPanel({
           <AlertTriangle size={18} />
           <div>
             <strong>当前连接不是 HTTPS</strong>
-            <span>登录密码会以明文经过网络。正式使用时请绑定域名并开启 HTTPS，Caddy 会自动签发证书。</span>
+            <span>登录密码会以明文经过网络。完成 ICP 备案后请尽快配置 HTTPS，不要在 HTTP 下长期使用同一个密码。</span>
           </div>
         </div>
       ) : null}
@@ -520,9 +520,9 @@ function DataPanel({
         <section className="settings-block data-card">
           <span className="data-icon"><HardDrive size={21} /></span>
           <h2>服务器备份</h2>
-          <p>在服务器项目目录执行下面的命令，会生成 SQLite 快照并自动保留最近 14 份。</p>
-          <pre className="code-snippet">docker compose exec app node server/backup.js</pre>
-          <p className="data-note">图片和文件在 <code>data/uploads</code>，建议一并备份。完整命令见部署文档。</p>
+          <p>在服务器上执行下面的命令，会生成 SQLite 快照和 uploads 压缩包；数据库保留最近 14 份。</p>
+          <pre className="code-snippet">sudo bash /opt/devforge/deploy/backup.sh</pre>
+          <p className="data-note">图片和文件在 <code>data/uploads</code>，建议一并备份。GitHub 自动更新前也会先备份数据库。</p>
         </section>
       </div>
 
@@ -536,7 +536,7 @@ function DataPanel({
         <div className="storage-list">
           <div><span className="storage-key">数据库</span><code>data/devforge.db</code><em>SQLite · WAL</em></div>
           <div><span className="storage-key">图片 / 文件</span><code>data/uploads/</code><em>按 UUID 命名</em></div>
-          <div><span className="storage-key">自动备份</span><code>data/backups/</code><em>最近 14 份</em></div>
+          <div><span className="storage-key">备份目录</span><code>data/backups/</code><em>最近 14 份</em></div>
         </div>
         <p className="data-note">整个 <code>data/</code> 目录就是你的全部数据。迁移服务器时复制它即可。</p>
       </section>
@@ -613,7 +613,7 @@ function AboutPanel({
           <div><strong>React + Vite</strong><span>界面与块编辑器</span></div>
           <div><strong>BlockNote</strong><span>Notion 风格积木内核</span></div>
           <div><strong>Fastify + SQLite</strong><span>API 与数据存储</span></div>
-          <div><strong>Docker + Caddy</strong><span>部署与自动 HTTPS</span></div>
+          <div><strong>Ubuntu + Nginx</strong><span>部署与 HTTPS</span></div>
         </div>
         <p className="data-note">
           你的数据只保存在自己的服务器上。没有第三方分析、没有广告、没有公开注册。

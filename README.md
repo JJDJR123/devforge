@@ -24,6 +24,8 @@
 
 ![公开只读页面](docs/screenshots/public-page.png)
 
+第一次使用后台？看 **[使用手册](docs/USER-GUIDE.md)**：模块、页面、块编辑器、图片/视频、公开/私密和备份都有步骤说明。
+
 ## 技术栈
 
 | 层 | 选型 |
