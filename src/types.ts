@@ -3,6 +3,23 @@ export type User = {
   username: string;
 };
 
+export type AIStatus = {
+  configured: boolean;
+  model: string;
+  provider: string;
+};
+
+export type AISource = {
+  id: string;
+  title: string;
+  icon: string;
+};
+
+export type AIChatResponse = {
+  answer: string;
+  sources: AISource[];
+};
+
 export type Theme = {
   preset: string;
   accent: string;

@@ -76,6 +76,7 @@ import {
   updateSiteSettings,
   updateUsername,
 } from './db.js';
+import { chatWithAI, AIError, getAIStatus } from './ai.js';
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || 'info' },
@@ -506,6 +507,23 @@ app.post('/api/pages/reorder', { preHandler: requireAuth }, async (req, reply) =
   if (!getModule(moduleId)) return fail(reply, 404, 'NOT_FOUND', '模块不存在。');
   reorderPages(ids.slice(0, 1000), moduleId, parentId || null);
   return { ok: true };
+});
+
+app.get('/api/ai/status', { preHandler: requireAuth }, async () => getAIStatus());
+
+app.post('/api/ai/chat', { preHandler: requireAuth }, async (req, reply) => {
+  const message = String(req.body?.message || '').trim();
+  const pageId = typeof req.body?.pageId === 'string' ? req.body.pageId : null;
+  try {
+    const result = await chatWithAI({ message, pageId });
+    return result;
+  } catch (error) {
+    if (error instanceof AIError) {
+      return fail(reply, error.status, error.code, error.message);
+    }
+    req.log.error(error);
+    return fail(reply, 500, 'AI_ERROR', 'AI 助手暂时不可用，请稍后再试。');
+  }
 });
 
 /* ------------------------------------------------------------------ */

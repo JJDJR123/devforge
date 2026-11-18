@@ -234,3 +234,7 @@ devforge/
 ---
 
 DEVFORGE v1.0.0 · 公开只读 · 单管理员 · 自托管 · PWA
+
+## AI 助手
+
+管理员后台右下角内置 AI 助手（DeepSeek / OpenAI 兼容接口）。配置方式见 **[docs/AI-DEEPSEEK.md](docs/AI-DEEPSEEK.md)**。API Key 只保存在服务器 `.env`，不会进入 Git，也不会暴露给公开访客。

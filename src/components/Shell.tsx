@@ -4,6 +4,7 @@ import { Menu, Search, Settings } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { SearchDialog } from './SearchDialog';
 import { Avatar } from './Avatar';
+import { AIAssistant } from './AIAssistant';
 import { Dashboard } from '../views/Dashboard';
 import { ModuleView } from '../views/ModuleView';
 import { PageView } from '../views/PageView';
@@ -110,6 +111,7 @@ export function Shell() {
       </div>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <AIAssistant />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import type {
   AuthStatus,
+  AIChatResponse,
+  AIStatus,
   BlockRecord,
   Bootstrap,
   Breadcrumb,
@@ -99,6 +101,11 @@ export const api = {
     request<{ site: SiteSettings }>('/api/settings/site', { method: 'PUT', body: input }),
 
   bootstrap: () => request<Bootstrap>('/api/bootstrap'),
+
+  aiStatus: () => request<AIStatus>('/api/ai/status'),
+
+  aiChat: (input: { message: string; pageId?: string | null }) =>
+    request<AIChatResponse>('/api/ai/chat', { method: 'POST', body: input }),
 
   publicBootstrap: () => request<PublicBootstrap>('/api/public/bootstrap'),
 

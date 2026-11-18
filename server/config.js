@@ -40,6 +40,12 @@ export const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true'
     ? false
     : null;
 
+// DeepSeek / OpenAI-compatible chat API. The key never leaves the server.
+export const AI_API_KEY = String(process.env.AI_API_KEY || '').trim();
+export const AI_BASE_URL = String(process.env.AI_BASE_URL || 'https://api.deepseek.com').trim().replace(/\/+$/, '');
+export const AI_MODEL = String(process.env.AI_MODEL || 'deepseek-chat').trim();
+export const AI_MAX_TOKENS = Math.min(4000, Math.max(200, Number(process.env.AI_MAX_TOKENS || 1200)));
+
 export const DEFAULT_THEME = {
   preset: 'forge',
   accent: '#c8f76a',
