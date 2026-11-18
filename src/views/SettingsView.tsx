@@ -5,6 +5,7 @@ import {
   Check,
   Download,
   Eye,
+  Globe2,
   HardDrive,
   Info,
   KeyRound,
@@ -15,6 +16,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Smartphone,
+  Upload,
   UserRound,
 } from 'lucide-react';
 import { api } from '../api';
@@ -32,10 +34,11 @@ import {
 } from '../theme';
 import { cn, formatNumber, getErrorMessage } from '../utils';
 
-type Tab = 'appearance' | 'account' | 'data' | 'about';
+type Tab = 'appearance' | 'site' | 'account' | 'data' | 'about';
 
 const TABS: { id: Tab; label: string; icon: typeof Palette }[] = [
   { id: 'appearance', label: '外观', icon: Palette },
+  { id: 'site', label: '站点', icon: Globe2 },
   { id: 'account', label: '账户', icon: UserRound },
   { id: 'data', label: '数据与备份', icon: HardDrive },
   { id: 'about', label: '关于', icon: Info },
@@ -126,7 +129,7 @@ export function SettingsView() {
           <div className="settings-head-badge">
             <BrandMark size={34} />
             <div>
-              <strong>DEVFORGE {data.system.version}</strong>
+              <strong>{data.site?.name || 'DEVFORGE'} {data.system.version}</strong>
               <span>SELF HOSTED</span>
             </div>
           </div>
@@ -154,6 +157,8 @@ export function SettingsView() {
 
       {tab === 'appearance' ? (
         <AppearancePanel />
+      ) : tab === 'site' ? (
+        <SitePanel />
       ) : tab === 'account' ? (
         <AccountPanel onLogout={handleLogout} />
       ) : tab === 'data' ? (
@@ -172,7 +177,7 @@ export function SettingsView() {
       )}
 
       <div className="settings-foot">
-        <span>DEVFORGE · 单用户 · SQLite</span>
+        <span>{data.site?.name || 'DEVFORGE'} · 单用户 · SQLite</span>
         {data.system.icp?.number ? (
           <a href={data.system.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
             {data.system.icp.number}
@@ -368,14 +373,163 @@ function AppearancePanel() {
   );
 }
 
+function SitePanel() {
+  const { data, refresh } = useApp();
+  const { toast } = useToast();
+  const [name, setName] = useState(data?.site.name || 'DEVFORGE');
+  const [tagline, setTagline] = useState(data?.site.tagline || '独立游戏开发学习舱');
+  const [logoUrl, setLogoUrl] = useState(data?.site.logoUrl || '');
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!data?.site) return;
+    setName(data.site.name);
+    setTagline(data.site.tagline);
+    setLogoUrl(data.site.logoUrl);
+  }, [data?.site]);
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const result = await api.upload(file);
+      setLogoUrl(result.url);
+    } catch (uploadError) {
+      setError(getErrorMessage(uploadError));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.updateSite({ name: name.trim(), tagline: tagline.trim(), logoUrl });
+      await refresh();
+      toast('站点名称和图标已更新。', 'success');
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-panel site-panel">
+      <section className="settings-block">
+        <div className="settings-block-head">
+          <div>
+            <span className="eyebrow">SITE IDENTITY</span>
+            <h2>站点名称与图标</h2>
+            <p>这些内容会立即应用到管理端和公开站，不会写入 Git。</p>
+          </div>
+        </div>
+
+        <form className="site-form" onSubmit={save}>
+          <div className="site-brand-preview">
+            {logoUrl ? (
+              <img src={logoUrl} alt={name || '站点图标'} className="site-logo-preview" />
+            ) : (
+              <BrandMark size={52} />
+            )}
+            <div>
+              <strong>{name || '你的学习站'}</strong>
+              <span>{tagline || '在这里写一句副标题'}</span>
+            </div>
+          </div>
+
+          <label className="field">
+            <span className="field-label">站点名称</span>
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={40}
+              placeholder="DEVFORGE"
+            />
+          </label>
+
+          <label className="field">
+            <span className="field-label">副标题 / 标语</span>
+            <input
+              value={tagline}
+              onChange={(event) => setTagline(event.target.value)}
+              maxLength={100}
+              placeholder="独立游戏开发学习舱"
+            />
+          </label>
+
+          <div className="field">
+            <span className="field-label">站点图标</span>
+            <div className="site-logo-row">
+              <label className="btn btn-ghost btn-sm site-upload">
+                <Upload size={14} /> {uploading ? '上传中…' : '上传图片'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(event) => { void uploadLogo(event.target.files?.[0]); event.target.value = ''; }}
+                  disabled={uploading}
+                />
+              </label>
+              {logoUrl ? (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLogoUrl('')}>
+                  恢复默认图标
+                </button>
+              ) : null}
+              <span className="field-hint">建议 1:1 方形 PNG / WebP，最大 25MB。</span>
+            </div>
+          </div>
+
+          {error ? <div className="form-error">{error}</div> : null}
+
+          <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
+            {busy ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+            {busy ? '保存中…' : '保存站点设置'}
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function AccountPanel({ onLogout }: { onLogout: () => void }) {
   const { toast } = useToast();
-  const { data } = useApp();
+  const { data, refresh } = useApp();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState(data?.user.username || '');
+  const [usernamePassword, setUsernamePassword] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameBusy, setUsernameBusy] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setUsername(data?.user.username || '');
+  }, [data?.user.username]);
+
+  async function changeUsername(event: FormEvent) {
+    event.preventDefault();
+    if (usernameBusy) return;
+    setUsernameError('');
+    setUsernameBusy(true);
+    try {
+      await api.updateAccount({ username: username.trim(), currentPassword: usernamePassword });
+      await refresh();
+      setUsernamePassword('');
+      toast('管理员用户名已更新。', 'success');
+    } catch (changeError) {
+      setUsernameError(getErrorMessage(changeError));
+    } finally {
+      setUsernameBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -410,7 +564,7 @@ function AccountPanel({ onLogout }: { onLogout: () => void }) {
           <Avatar name="ADMIN" size={58} />
           <div>
             <span className="eyebrow">ADMINISTRATOR</span>
-            <h2>管理员</h2>
+            <h2>{data?.user.username || '管理员'}</h2>
             <p>密码只保存在服务器，网页端不会显示。公开访客看不到这个账号。</p>
           </div>
           <span className="account-badge"><ShieldCheck size={14} /> 管理员</span>
@@ -424,6 +578,43 @@ function AccountPanel({ onLogout }: { onLogout: () => void }) {
         <button type="button" className="btn btn-ghost account-logout" onClick={onLogout}>
           <LogOut size={15} /> 退出登录
         </button>
+      </section>
+
+      <section className="settings-block">
+        <div className="settings-block-head">
+          <div>
+            <span className="eyebrow">ACCOUNT NAME</span>
+            <h2>修改管理员用户名</h2>
+            <p>登录名会立即更新，密码保持不变。修改需要验证当前密码。</p>
+          </div>
+        </div>
+        <form className="password-form" onSubmit={changeUsername}>
+          <label className="field">
+            <span className="field-label"><UserRound size={14} /> 管理员用户名</span>
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+              maxLength={32}
+              placeholder="2–32 个字符"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label"><KeyRound size={14} /> 当前密码</span>
+            <input
+              type="password"
+              value={usernamePassword}
+              onChange={(event) => setUsernamePassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder="验证当前密码"
+            />
+          </label>
+          {usernameError ? <div className="form-error">{usernameError}</div> : null}
+          <button type="submit" className="btn btn-primary" disabled={usernameBusy || !username.trim() || !usernamePassword}>
+            {usernameBusy ? <Loader2 size={16} className="spin" /> : <UserRound size={16} />}
+            {usernameBusy ? '更新中…' : '更新用户名'}
+          </button>
+        </form>
       </section>
 
       <section className="settings-block">
@@ -553,14 +744,15 @@ function AboutPanel({
   canInstall: boolean;
   onInstall: () => void;
 }) {
+  const { data } = useApp();
   return (
     <div className="settings-panel about-panel">
       <section className="settings-block about-hero">
         <BrandMark size={64} />
         <div>
-          <span className="eyebrow">ABOUT DEVFORGE</span>
-          <h2>独立游戏开发学习舱</h2>
-          <p>一个给自己用的、可以自由搭建的学习工作台。做小，做完，再做下一个。</p>
+          <span className="eyebrow">ABOUT {data?.site?.name || 'DEVFORGE'}</span>
+          <h2>{data?.site?.name || '独立游戏开发学习舱'}</h2>
+          <p>{data?.site?.tagline || '一个给自己用的、可以自由搭建的学习工作台。做小，做完，再做下一个。'}</p>
         </div>
         <span className="about-version">v1.0.0</span>
       </section>

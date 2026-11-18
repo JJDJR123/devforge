@@ -23,6 +23,15 @@ export function Shell() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!data?.site) return;
+    document.title = `${data.site.name} · ${data.site.tagline}`;
+    if (data.site.logoUrl) {
+      const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (icon) icon.href = data.site.logoUrl;
+    }
+  }, [data?.site]);
+
+  useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();

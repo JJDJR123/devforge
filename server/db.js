@@ -123,6 +123,18 @@ function migrate() {
     // Upgrading from the private-only version must not publish existing notes by surprise.
     db.exec('UPDATE modules SET is_public = 0');
     db.exec('PRAGMA user_version = 3');
+    version = 3;
+  }
+
+  if (version < 4) {
+    const moduleColumns = db.prepare('PRAGMA table_info(modules)').all().map((column) => column.name);
+    if (!moduleColumns.includes('parent_id')) {
+      // No FK here: the column is added to an existing table, and deletes are
+      // handled explicitly so they work on every SQLite build.
+      db.exec('ALTER TABLE modules ADD COLUMN parent_id TEXT');
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_modules_parent ON modules(parent_id, sort_order)');
+    db.exec('PRAGMA user_version = 4');
   }
 
   const stamp = now();
@@ -157,6 +169,11 @@ export function createUser({ username, passwordHash }) {
 
 export function updatePassword(userId, passwordHash) {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
+}
+
+export function updateUsername(userId, username) {
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, userId);
+  return getUserById(userId);
 }
 
 export function createSession({ tokenHash, userId, expiresAt }) {
@@ -195,6 +212,7 @@ export function deleteExpiredSessions() {
 
 const moduleFromRow = (row) => row && ({
   id: row.id,
+  parentId: row.parent_id || null,
   title: row.title,
   icon: row.icon,
   accent: row.accent,
@@ -208,42 +226,123 @@ export function listModules() {
   return db.prepare('SELECT * FROM modules ORDER BY sort_order ASC, created_at ASC').all().map(moduleFromRow);
 }
 
+function isModuleEffectivelyPublic(moduleId, byId = null) {
+  const modules = byId || new Map(listModules().map((module) => [module.id, module]));
+  let current = modules.get(moduleId);
+  const seen = new Set();
+  while (current) {
+    if (!current.isPublic) return false;
+    if (!current.parentId || seen.has(current.id)) return true;
+    seen.add(current.id);
+    current = modules.get(current.parentId);
+  }
+  return false;
+}
+
+function publicModuleIdSet() {
+  const modules = listModules();
+  const byId = new Map(modules.map((module) => [module.id, module]));
+  return new Set(modules.filter((module) => isModuleEffectivelyPublic(module.id, byId)).map((module) => module.id));
+}
+
 export function listPublicModules() {
-  return db.prepare('SELECT * FROM modules WHERE is_public = 1 ORDER BY sort_order ASC, created_at ASC')
-    .all().map(moduleFromRow);
+  const modules = listModules();
+  const byId = new Map(modules.map((module) => [module.id, module]));
+  return modules.filter((module) => isModuleEffectivelyPublic(module.id, byId));
 }
 
 export function getModule(id) {
   return moduleFromRow(db.prepare('SELECT * FROM modules WHERE id = ?').get(id));
 }
 
-export function createModule({ title, icon = '🎮', accent = '#c8f76a', isPublic = true }) {
+function isModuleDescendant(candidateId, ancestorId) {
+  let current = getModule(candidateId);
+  const seen = new Set();
+  while (current?.parentId) {
+    if (current.parentId === ancestorId) return true;
+    if (seen.has(current.id)) return true;
+    seen.add(current.id);
+    current = getModule(current.parentId);
+  }
+  return false;
+}
+
+export function createModule({ title, icon = '🎮', accent = '#c8f76a', isPublic = true, parentId = null }) {
+  if (parentId && !getModule(parentId)) throw new Error('PARENT_NOT_FOUND');
   const id = uid();
   const stamp = now();
-  const order = db.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM modules').get().n;
+  const order = db.prepare(`
+    SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM modules
+    WHERE parent_id IS ?
+  `).get(parentId).n;
   db.prepare(`
-    INSERT INTO modules (id, title, icon, accent, is_public, sort_order, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title, icon, accent, isPublic ? 1 : 0, order, stamp, stamp);
+    INSERT INTO modules (id, parent_id, title, icon, accent, is_public, sort_order, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, parentId, title, icon, accent, isPublic ? 1 : 0, order, stamp, stamp);
   return getModule(id);
 }
 
 export function updateModule(id, patch) {
+  const current = getModule(id);
+  if (!current) return null;
   const fields = [];
   const values = [];
   if (typeof patch.title === 'string') { fields.push('title = ?'); values.push(patch.title); }
   if (typeof patch.icon === 'string') { fields.push('icon = ?'); values.push(patch.icon); }
   if (typeof patch.accent === 'string') { fields.push('accent = ?'); values.push(patch.accent); }
   if (typeof patch.isPublic === 'boolean') { fields.push('is_public = ?'); values.push(patch.isPublic ? 1 : 0); }
-  if (!fields.length) return getModule(id);
+  if (patch.parentId !== undefined) {
+    const parentId = patch.parentId || null;
+    if (parentId === id) throw new Error('MODULE_CYCLE');
+    if (parentId && !getModule(parentId)) throw new Error('PARENT_NOT_FOUND');
+    if (parentId && isModuleDescendant(parentId, id)) throw new Error('MODULE_CYCLE');
+    fields.push('parent_id = ?');
+    values.push(parentId);
+    if (parentId !== current.parentId) {
+      const order = db.prepare(`
+        SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM modules
+        WHERE parent_id IS ?
+      `).get(parentId).n;
+      fields.push('sort_order = ?');
+      values.push(order);
+    }
+  }
+  if (!fields.length) return current;
   fields.push('updated_at = ?');
   values.push(now(), id);
   db.prepare(`UPDATE modules SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   return getModule(id);
 }
 
+export function moduleSubtreeIds(id) {
+  const ids = [];
+  const stack = [id];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || ids.includes(current)) continue;
+    ids.push(current);
+    const children = db.prepare('SELECT id FROM modules WHERE parent_id = ?').all(current);
+    for (const child of children) stack.push(child.id);
+  }
+  return ids;
+}
+
 export function deleteModule(id) {
-  return db.prepare('DELETE FROM modules WHERE id = ?').run(id).changes > 0;
+  const ids = moduleSubtreeIds(id);
+  if (!ids.length) return false;
+  const placeholders = ids.map(() => '?').join(', ');
+  db.exec('BEGIN');
+  try {
+    db.prepare(`DELETE FROM pages WHERE module_id IN (${placeholders})`).run(...ids);
+    for (const moduleId of [...ids].reverse()) {
+      db.prepare('DELETE FROM modules WHERE id = ?').run(moduleId);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  return true;
 }
 
 export function reorderModules(ids) {
@@ -286,28 +385,23 @@ export function listPageMeta() {
 }
 
 export function listPublicPageMeta() {
+  const ids = publicModuleIdSet();
   return db.prepare(`
-    SELECT p.id, p.module_id, p.parent_id, p.title, p.icon, p.sort_order,
-           p.created_at, p.updated_at, p.todo_total, p.todo_done,
-           LENGTH(p.search_text) AS chars
-    FROM pages p
-    JOIN modules m ON m.id = p.module_id
-    WHERE m.is_public = 1
-    ORDER BY p.module_id ASC, p.sort_order ASC, p.created_at ASC
-  `).all().map(pageMetaFromRow);
+    SELECT id, module_id, parent_id, title, icon, sort_order, created_at, updated_at,
+           todo_total, todo_done, LENGTH(search_text) AS chars
+    FROM pages
+    ORDER BY module_id ASC, sort_order ASC, created_at ASC
+  `).all().filter((row) => ids.has(row.module_id)).map(pageMetaFromRow);
 }
 
 export function listPublicRecentPages(limit = 6) {
+  const ids = publicModuleIdSet();
   return db.prepare(`
-    SELECT p.id, p.module_id, p.parent_id, p.title, p.icon, p.sort_order,
-           p.created_at, p.updated_at, p.todo_total, p.todo_done,
-           LENGTH(p.search_text) AS chars
-    FROM pages p
-    JOIN modules m ON m.id = p.module_id
-    WHERE m.is_public = 1
-    ORDER BY p.updated_at DESC
-    LIMIT ?
-  `).all(limit).map(pageMetaFromRow);
+    SELECT id, module_id, parent_id, title, icon, sort_order, created_at, updated_at,
+           todo_total, todo_done, LENGTH(search_text) AS chars
+    FROM pages
+    ORDER BY updated_at DESC
+  `).all().filter((row) => ids.has(row.module_id)).slice(0, limit).map(pageMetaFromRow);
 }
 
 export function listRecentPages(limit = 6) {
@@ -335,6 +429,18 @@ export function getPageBreadcrumb(id) {
   const page = getPage(id);
   if (!page) return null;
   const module = getModule(page.moduleId);
+  const moduleChain = [];
+  let moduleCursor = module;
+  const seenModules = new Set();
+  while (moduleCursor && !seenModules.has(moduleCursor.id)) {
+    seenModules.add(moduleCursor.id);
+    moduleChain.unshift({
+      id: moduleCursor.id,
+      title: moduleCursor.title,
+      icon: moduleCursor.icon,
+    });
+    moduleCursor = moduleCursor.parentId ? getModule(moduleCursor.parentId) : null;
+  }
   const chain = [];
   let cursor = page;
   const seen = new Set();
@@ -345,6 +451,7 @@ export function getPageBreadcrumb(id) {
   }
   return {
     module: module ? { id: module.id, title: module.title, icon: module.icon } : null,
+    moduleChain,
     pages: chain,
   };
 }
@@ -352,8 +459,7 @@ export function getPageBreadcrumb(id) {
 export function getPublicPage(id) {
   const page = getPage(id);
   if (!page) return null;
-  const module = getModule(page.moduleId);
-  if (!module?.isPublic) return null;
+  if (!isModuleEffectivelyPublic(page.moduleId)) return null;
   return page;
 }
 
@@ -458,6 +564,28 @@ export function getTheme() {
   return { ...DEFAULT_THEME, ...(stored && typeof stored === 'object' ? stored : {}) };
 }
 
+const DEFAULT_SITE = {
+  name: 'DEVFORGE',
+  tagline: '独立游戏开发学习舱',
+  logoUrl: '',
+};
+
+export function getSiteSettings() {
+  const stored = getSetting('site', {});
+  return { ...DEFAULT_SITE, ...(stored && typeof stored === 'object' ? stored : {}) };
+}
+
+export function updateSiteSettings(patch) {
+  const current = getSiteSettings();
+  const next = {
+    name: typeof patch.name === 'string' ? patch.name.trim().slice(0, 40) : current.name,
+    tagline: typeof patch.tagline === 'string' ? patch.tagline.trim().slice(0, 100) : current.tagline,
+    logoUrl: typeof patch.logoUrl === 'string' ? patch.logoUrl.trim().slice(0, 500) : current.logoUrl,
+  };
+  if (!next.name) next.name = DEFAULT_SITE.name;
+  return setSetting('site', next);
+}
+
 /* ------------------------------------------------------------------ */
 /* search & bootstrap                                                  */
 /* ------------------------------------------------------------------ */
@@ -503,24 +631,24 @@ export function searchPages(query, limit = 30) {
 export function searchPublicPages(query, limit = 30) {
   const q = String(query || '').trim();
   if (!q) return [];
+  const ids = publicModuleIdSet();
   const like = `%${q}%`;
   const rows = db.prepare(`
-    SELECT p.id, p.module_id, p.parent_id, p.title, p.icon, p.search_text, p.updated_at
-    FROM pages p
-    JOIN modules m ON m.id = p.module_id
-    WHERE m.is_public = 1 AND (p.title LIKE ? OR p.search_text LIKE ?)
+    SELECT id, module_id, parent_id, title, icon, search_text, updated_at
+    FROM pages
+    WHERE title LIKE ? OR search_text LIKE ?
     ORDER BY
-      CASE WHEN p.title LIKE ? THEN 0 ELSE 1 END,
-      p.updated_at DESC
-    LIMIT ?
-  `).all(like, like, like, limit);
-  return mapSearchRows(rows, q);
+      CASE WHEN title LIKE ? THEN 0 ELSE 1 END,
+      updated_at DESC
+  `).all(like, like, like);
+  return mapSearchRows(rows.filter((row) => ids.has(row.module_id)).slice(0, limit), q);
 }
 
 export function getBootstrap() {
   const modules = listModules();
   const pages = listPageMeta();
   return {
+    site: getSiteSettings(),
     theme: getTheme(),
     modules,
     pages,
@@ -541,10 +669,13 @@ export function getBootstrap() {
 export function getPublicBootstrap() {
   const modules = listPublicModules();
   const pages = listPublicPageMeta();
+  const site = getSiteSettings();
   return {
     site: {
-      name: 'DEVFORGE',
-      tagline: '独立游戏开发学习舱',
+      ...site,
+      logoUrl: site.logoUrl.startsWith('/api/assets/')
+        ? site.logoUrl.replace('/api/assets/', '/api/public/assets/')
+        : site.logoUrl,
     },
     theme: getTheme(),
     modules,

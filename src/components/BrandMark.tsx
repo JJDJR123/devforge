@@ -45,13 +45,27 @@ export function BrandMark({ size = 40, className }: { size?: number; className?:
   );
 }
 
-export function BrandLockup({ compact = false }: { compact?: boolean }) {
+export function BrandLockup({
+  compact = false,
+  name = 'DEVFORGE',
+  tagline = '独立游戏开发学习舱',
+  logoUrl = '',
+}: {
+  compact?: boolean;
+  name?: string;
+  tagline?: string;
+  logoUrl?: string;
+}) {
   return (
     <div className={cn('brand-lockup', compact && 'is-compact')}>
-      <BrandMark size={compact ? 36 : 42} />
+      {logoUrl ? (
+        <img className="brand-custom-logo" src={logoUrl} alt={name} width={compact ? 36 : 42} height={compact ? 36 : 42} />
+      ) : (
+        <BrandMark size={compact ? 36 : 42} />
+      )}
       <div className="brand-type">
-        <span className="brand-name">DEVFORGE</span>
-        {!compact ? <span className="brand-sub">独立游戏开发学习舱</span> : null}
+        <span className="brand-name">{name}</span>
+        {!compact ? <span className="brand-sub">{tagline}</span> : null}
       </div>
     </div>
   );

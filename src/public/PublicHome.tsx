@@ -24,6 +24,10 @@ export function PublicHome({
     () => [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder),
     [data.modules],
   );
+  const topModules = useMemo(
+    () => modules.filter((module) => !module.parentId),
+    [modules],
+  );
   const latest = data.recent[0] || null;
   const latestModule = latest ? modules.find((module) => module.id === latest.moduleId) : null;
   const firstPage = data.pages[0] || null;
@@ -49,7 +53,7 @@ export function PublicHome({
             <Globe2 size={13} /> PUBLIC READING ROOM · {todayLabel()}
           </div>
           <h1>
-            DEVFORGE<span className="public-dot">.</span>
+            {data.site.name}<span className="public-dot">.</span>
           </h1>
           <p>{data.site.tagline}。这里公开记录独立游戏开发的学习模块、原型笔记和踩坑过程。</p>
           <div className="hero-actions">
@@ -129,9 +133,9 @@ export function PublicHome({
             <span className="section-count">{modules.length}</span>
           </div>
 
-          {modules.length ? (
+          {topModules.length ? (
             <div className="module-grid">
-              {modules.map((module) => {
+              {topModules.map((module) => {
                 const count = pagesByModule.pages.get(module.id) || 0;
                 const chars = pagesByModule.chars.get(module.id) || 0;
                 return (
@@ -214,7 +218,7 @@ export function PublicHome({
       </div>
 
       <footer className="dash-footer">
-        <span>DEVFORGE / PUBLIC READING ROOM</span>
+        <span>{data.site.name} / PUBLIC READING ROOM</span>
         <span><FileText size={10} /> {formatNumber(data.stats.chars)} 字公开记录</span>
         <span>做小，做完，再做下一个。</span>
       </footer>

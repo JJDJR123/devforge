@@ -8,6 +8,7 @@ import type {
   PageMeta,
   PublicBootstrap,
   SearchResult,
+  SiteSettings,
   Theme,
   UploadResult,
   User,
@@ -91,6 +92,12 @@ export const api = {
   changePassword: (input: { currentPassword: string; newPassword: string }) =>
     request<{ ok: true }>('/api/auth/password', { method: 'POST', body: input }),
 
+  updateAccount: (input: { username: string; currentPassword: string }) =>
+    request<{ user: User }>('/api/auth/account', { method: 'PATCH', body: input }),
+
+  updateSite: (input: SiteSettings) =>
+    request<{ site: SiteSettings }>('/api/settings/site', { method: 'PUT', body: input }),
+
   bootstrap: () => request<Bootstrap>('/api/bootstrap'),
 
   publicBootstrap: () => request<PublicBootstrap>('/api/public/bootstrap'),
@@ -125,17 +132,17 @@ export const api = {
       },
     ),
 
-  createModule: (input: { title: string; icon: string; accent: string; isPublic?: boolean }) =>
+  createModule: (input: { title: string; icon: string; accent: string; isPublic?: boolean; parentId?: string | null }) =>
     request<{ module: Module }>('/api/modules', { method: 'POST', body: input }),
 
-  updateModule: (id: string, input: { title?: string; icon?: string; accent?: string; isPublic?: boolean }) =>
+  updateModule: (id: string, input: { title?: string; icon?: string; accent?: string; isPublic?: boolean; parentId?: string | null }) =>
     request<{ module: Module }>(`/api/modules/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: input,
     }),
 
   deleteModule: (id: string) =>
-    request<{ ok: true; deletedPages: number }>(`/api/modules/${encodeURIComponent(id)}`, {
+    request<{ ok: true; deletedPages: number; deletedModules?: number }>(`/api/modules/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
 

@@ -13,8 +13,15 @@ export type Theme = {
   glow: boolean;
 };
 
+export type SiteSettings = {
+  name: string;
+  tagline: string;
+  logoUrl: string;
+};
+
 export type Module = {
   id: string;
+  parentId: string | null;
   title: string;
   icon: string;
   accent: string;
@@ -52,11 +59,13 @@ export type Page = PageMeta & {
 
 export type Breadcrumb = {
   module: { id: string; title: string; icon: string } | null;
+  moduleChain?: { id: string; title: string; icon: string }[];
   pages: { id: string; title: string; icon: string }[];
 };
 
 export type Bootstrap = {
   user: User;
+  site: SiteSettings;
   theme: Theme;
   modules: Module[];
   pages: PageMeta[];
@@ -91,10 +100,7 @@ export type AuthStatus = {
 };
 
 export type PublicBootstrap = {
-  site: {
-    name: string;
-    tagline: string;
-  };
+  site: SiteSettings;
   theme: Theme;
   modules: Module[];
   pages: PageMeta[];

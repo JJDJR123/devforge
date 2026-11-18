@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FilePlus2,
   FolderOpen,
+  FolderPlus,
   Globe2,
   Lock,
   MoreHorizontal,
@@ -32,9 +33,29 @@ export function ModuleView() {
   const { confirm } = useConfirm();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const [submoduleOpen, setSubmoduleOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const module = data?.modules.find((item) => item.id === moduleId) || null;
+  const childModules = useMemo(
+    () => (data?.modules || [])
+      .filter((item) => item.parentId === moduleId)
+      .sort((a, b) => a.sortOrder - b.sortOrder),
+    [data?.modules, moduleId],
+  );
+  const ancestorModules = useMemo(() => {
+    const chain: NonNullable<typeof module>[] = [];
+    let current = module;
+    const seen = new Set<string>();
+    while (current?.parentId && !seen.has(current.id)) {
+      seen.add(current.id);
+      const parent = data?.modules.find((item) => item.id === current?.parentId);
+      if (!parent) break;
+      chain.unshift(parent);
+      current = parent;
+    }
+    return chain;
+  }, [data?.modules, module]);
   const modulePages = useMemo(
     () => (data?.pages || []).filter((page) => page.moduleId === moduleId),
     [data?.pages, moduleId],
@@ -69,6 +90,21 @@ export function ModuleView() {
   const todoDone = modulePages.reduce((sum, page) => sum + page.todoDone, 0);
   const completion = todoTotal ? Math.round((todoDone / todoTotal) * 100) : 0;
   const roots = pagesByParent.get('__root__') || [];
+  const subtreeModuleIds = useMemo(() => {
+    const ids = new Set<string>([moduleId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const item of data?.modules || []) {
+        if (item.parentId && ids.has(item.parentId) && !ids.has(item.id)) {
+          ids.add(item.id);
+          changed = true;
+        }
+      }
+    }
+    return ids;
+  }, [data?.modules, moduleId]);
+  const subtreePages = (data?.pages || []).filter((page) => subtreeModuleIds.has(page.moduleId));
   const lastUpdated = modulePages.reduce<string | null>((latest, page) => (
     !latest || page.updatedAt > latest ? page.updatedAt : latest
   ), null);
@@ -96,8 +132,8 @@ export function ModuleView() {
   async function deleteModule() {
     const ok = await confirm({
       title: `删除「${module!.title}」？`,
-      message: modulePages.length
-        ? `模块里的 ${modulePages.length} 个页面也会一起删除，且不能撤销。`
+      message: subtreePages.length || childModules.length
+        ? `模块里的 ${subtreePages.length} 个页面${childModules.length ? `、${childModules.length} 个直接子模块（以及更深层子模块）` : ''}也会一起删除，且不能撤销。`
         : '这个模块会被永久删除，且不能撤销。',
       confirmText: '删除模块',
       danger: true,
@@ -209,6 +245,12 @@ export function ModuleView() {
         <button type="button" onClick={() => navigate('/')}>
           <FolderOpen size={13} /> 全部模块
         </button>
+        {ancestorModules.map((item) => (
+          <span key={item.id} className="page-crumb-parent">
+            <ChevronRight size={13} />
+            <button type="button" onClick={() => navigate(`/module/${item.id}`)}>{item.title}</button>
+          </span>
+        ))}
         <ChevronRight size={13} />
         <span className="page-crumb-current">{module.title}</span>
       </div>
@@ -220,7 +262,7 @@ export function ModuleView() {
           <div>
             <span className="eyebrow">MODULE / 学习模块</span>
             <h1>{module.title} <span className={cn('module-public-state', module.isPublic ? 'is-public' : 'is-private')}>{module.isPublic ? '公开' : '私密'}</span></h1>
-            <p>{modulePages.length} 张页面 · {formatNumber(chars)} 字 · {lastUpdated ? `更新于 ${formatRelativeTime(lastUpdated)}` : '还没有内容'}</p>
+            <p>{modulePages.length} 张页面{childModules.length ? ` · ${childModules.length} 个子模块` : ''} · {formatNumber(chars)} 字 · {lastUpdated ? `更新于 ${formatRelativeTime(lastUpdated)}` : '还没有内容'}</p>
             {todoTotal ? (
               <div className="module-hero-progress">
                 <div className="module-hero-progress-label">
@@ -236,6 +278,9 @@ export function ModuleView() {
           <button type="button" className="btn btn-primary" onClick={() => { void addPage(); }} disabled={creating}>
             {creating ? <span className="mini-spinner" /> : <Plus size={16} />} 新建页面
           </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setSubmoduleOpen(true)}>
+            <FolderPlus size={15} /> 子模块
+          </button>
           <button type="button" className="btn btn-ghost" onClick={() => setEditOpen(true)}>
             <Pencil size={15} /> 编辑
           </button>
@@ -247,6 +292,7 @@ export function ModuleView() {
             )}
             items={[
               { label: '编辑模块', icon: Pencil, onSelect: () => setEditOpen(true) },
+              { label: '新建子模块', icon: FolderPlus, onSelect: () => setSubmoduleOpen(true) },
               { label: '新建页面', icon: FilePlus2, onSelect: () => { void addPage(); } },
               {
                 label: module.isPublic ? '设为私密' : '公开到网站',
@@ -259,6 +305,47 @@ export function ModuleView() {
           />
         </div>
       </header>
+
+      {childModules.length ? (
+        <section className="module-submodules-section">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">SUBMODULES / 子模块</span>
+              <h2>继续细分这个方向</h2>
+            </div>
+            <span className="section-count">{childModules.length}</span>
+          </div>
+          <div className="module-submodule-grid">
+            {childModules.map((child) => {
+              const directPages = (data?.pages || []).filter((page) => page.moduleId === child.id).length;
+              const hiddenByParent = !module.isPublic || !child.isPublic;
+              return (
+                <button
+                  key={child.id}
+                  type="button"
+                  className="module-submodule-card"
+                  style={{ '--module-accent': child.accent } as CSSProperties}
+                  onClick={() => navigate(`/module/${child.id}`)}
+                >
+                  <span className="module-submodule-icon">{child.icon}</span>
+                  <span className="module-submodule-text">
+                    <strong>{child.title}</strong>
+                    <em>{directPages} 张页面{hiddenByParent ? ' · 私密' : ''}</em>
+                  </span>
+                  {hiddenByParent ? <Lock size={13} /> : <ArrowUpRight size={14} />}
+                </button>
+              );
+            })}
+            <button type="button" className="module-submodule-card is-create" onClick={() => setSubmoduleOpen(true)}>
+              <span className="module-submodule-icon"><FolderPlus size={17} /></span>
+              <span className="module-submodule-text">
+                <strong>新建子模块</strong>
+                <em>可以继续嵌套</em>
+              </span>
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="module-pages-section">
         <div className="section-head">
@@ -296,6 +383,17 @@ export function ModuleView() {
         open={editOpen}
         module={module}
         onClose={() => setEditOpen(false)}
+      />
+      <ModuleDialog
+        open={submoduleOpen}
+        module={null}
+        parentId={module.id}
+        parentTitle={module.title}
+        onClose={() => setSubmoduleOpen(false)}
+        onSaved={(saved) => {
+          setSubmoduleOpen(false);
+          navigate(`/module/${saved.id}`);
+        }}
       />
     </div>
   );

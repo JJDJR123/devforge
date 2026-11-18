@@ -12,11 +12,15 @@ import { cn, getErrorMessage } from '../utils';
 export function ModuleDialog({
   open,
   module,
+  parentId = null,
+  parentTitle,
   onClose,
   onSaved,
 }: {
   open: boolean;
   module?: Module | null;
+  parentId?: string | null;
+  parentTitle?: string;
   onClose: () => void;
   onSaved?: (module: Module) => void;
 }) {
@@ -51,7 +55,13 @@ export function ModuleDialog({
     try {
       const result = module
         ? await api.updateModule(module.id, { title: title.trim(), icon, accent, isPublic })
-        : await api.createModule({ title: title.trim(), icon, accent, isPublic });
+        : await api.createModule({
+          title: title.trim(),
+          icon,
+          accent,
+          isPublic,
+          parentId: parentId || null,
+        });
       await refresh();
       toast(module ? '模块已更新。' : '模块已创建。', 'success');
       onSaved?.(result.module);
@@ -69,7 +79,7 @@ export function ModuleDialog({
         <header className="modal-head">
           <div>
             <span className="eyebrow"><Layers size={13} /> MODULE</span>
-            <h2>{module ? '编辑模块' : '新建模块'}</h2>
+            <h2>{module ? '编辑模块' : parentId ? '新建子模块' : '新建模块'}</h2>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="关闭">
             <X size={18} />
@@ -145,7 +155,11 @@ export function ModuleDialog({
               </div>
               <div className="module-preview-bar"><span /></div>
             </div>
-            <p className="field-hint">模块是文件夹。创建后可以在里面添加任意页面。</p>
+            <p className="field-hint">
+              {parentId && !module
+                ? `将创建在「${parentTitle || '父模块'}」下面。模块可以继续嵌套。`
+                : '模块是文件夹，可以建子模块，也可以在里面添加任意页面。'}
+            </p>
           </div>
         </div>
 

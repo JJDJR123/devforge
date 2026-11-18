@@ -15,6 +15,25 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
   const { moduleId = '' } = useParams();
   const navigate = useNavigate();
   const module = data.modules.find((item) => item.id === moduleId) || null;
+  const childModules = useMemo(
+    () => data.modules
+      .filter((item) => item.parentId === moduleId)
+      .sort((a, b) => a.sortOrder - b.sortOrder),
+    [data.modules, moduleId],
+  );
+  const ancestorModules = useMemo(() => {
+    const chain: typeof data.modules = [];
+    let current = module;
+    const seen = new Set<string>();
+    while (current?.parentId && !seen.has(current.id)) {
+      seen.add(current.id);
+      const parent = data.modules.find((item) => item.id === current?.parentId);
+      if (!parent) break;
+      chain.unshift(parent);
+      current = parent;
+    }
+    return chain;
+  }, [data.modules, module]);
   const modulePages = useMemo(
     () => data.pages.filter((page) => page.moduleId === moduleId),
     [data.pages, moduleId],
@@ -77,6 +96,12 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
         <button type="button" onClick={() => navigate('/')}>
           <FolderOpen size={13} /> 公开首页
         </button>
+        {ancestorModules.map((item) => (
+          <span key={item.id} className="page-crumb-parent">
+            <ChevronRight size={13} />
+            <button type="button" onClick={() => navigate(`/module/${item.id}`)}>{item.title}</button>
+          </span>
+        ))}
         <ChevronRight size={13} />
         <span className="page-crumb-current">{module.title}</span>
       </div>
@@ -88,7 +113,7 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
           <div>
             <span className="eyebrow">MODULE / 公开学习模块</span>
             <h1>{module.title}</h1>
-            <p>{modulePages.length} 张页面 · {formatNumber(chars)} 字 · {lastUpdated ? `更新于 ${formatRelativeTime(lastUpdated)}` : '还没有内容'}</p>
+            <p>{modulePages.length} 张页面{childModules.length ? ` · ${childModules.length} 个子模块` : ''} · {formatNumber(chars)} 字 · {lastUpdated ? `更新于 ${formatRelativeTime(lastUpdated)}` : '还没有内容'}</p>
             {todoTotal ? (
               <div className="module-hero-progress">
                 <div className="module-hero-progress-label">
@@ -102,6 +127,39 @@ export function PublicModule({ data }: { data: PublicBootstrap }) {
         </div>
         <div className="public-readonly-badge"><Eye size={13} /> 只读浏览</div>
       </header>
+
+      {childModules.length ? (
+        <section className="module-submodules-section">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">SUBMODULES / 子模块</span>
+              <h2>继续浏览</h2>
+            </div>
+            <span className="section-count">{childModules.length}</span>
+          </div>
+          <div className="module-submodule-grid">
+            {childModules.map((child) => {
+              const count = data.pages.filter((page) => page.moduleId === child.id).length;
+              return (
+                <button
+                  key={child.id}
+                  type="button"
+                  className="module-submodule-card"
+                  style={{ '--module-accent': child.accent } as CSSProperties}
+                  onClick={() => navigate(`/module/${child.id}`)}
+                >
+                  <span className="module-submodule-icon">{child.icon}</span>
+                  <span className="module-submodule-text">
+                    <strong>{child.title}</strong>
+                    <em>{count} 张公开页面</em>
+                  </span>
+                  <ArrowUpRight size={14} />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="module-pages-section">
         <div className="section-head">

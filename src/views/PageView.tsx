@@ -243,18 +243,24 @@ export function PageView() {
     );
   }
 
+  const breadcrumbModules = breadcrumb?.moduleChain?.length
+    ? breadcrumb.moduleChain
+    : breadcrumb?.module
+      ? [breadcrumb.module]
+      : [];
+
   return (
     <article className="page-view">
       <div className="page-crumb">
-        {breadcrumb?.module ? (
-          <>
-            <button type="button" onClick={() => navigate(`/module/${breadcrumb.module?.id}`)}>
-              <span>{breadcrumb.module.icon}</span>
-              {breadcrumb.module.title}
+        {breadcrumbModules.map((item) => (
+          <span key={item.id} className="page-crumb-parent">
+            <button type="button" onClick={() => navigate(`/module/${item.id}`)}>
+              <span>{item.icon}</span>
+              {item.title}
             </button>
             <ChevronRight size={13} />
-          </>
-        ) : null}
+          </span>
+        ))}
         {breadcrumb?.pages.slice(0, -1).map((item) => (
           <span key={item.id} className="page-crumb-parent">
             <button type="button" onClick={() => navigate(`/page/${item.id}`)}>{item.title}</button>

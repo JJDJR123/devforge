@@ -62,6 +62,7 @@ import {
   getUserByUsername,
   getTheme,
   listModules,
+  moduleSubtreeIds,
   reorderModules,
   reorderPages,
   searchPages,
@@ -72,6 +73,8 @@ import {
   updatePageContent,
   updatePageMeta,
   updatePassword,
+  updateSiteSettings,
+  updateUsername,
 } from './db.js';
 
 const app = Fastify({
@@ -300,6 +303,26 @@ app.post('/api/auth/password', { preHandler: requireAuth }, async (req, reply) =
   return { ok: true };
 });
 
+app.patch('/api/auth/account', { preHandler: requireAuth }, async (req, reply) => {
+  const username = validateUsername(req.body?.username);
+  if (!username.ok) return fail(reply, 400, 'INVALID_USERNAME', username.message);
+  const current = String(req.body?.currentPassword || '');
+  const user = getUserByUsername(req.user.username);
+  if (!user || !verifyPassword(current, user.password_hash)) {
+    return fail(reply, 400, 'WRONG_PASSWORD', '当前密码不正确。');
+  }
+  if (username.value === user.username) return { user: { id: user.id, username: user.username } };
+  try {
+    const updated = updateUsername(user.id, username.value);
+    return { user: { id: updated.id, username: updated.username } };
+  } catch (error) {
+    if (String(error?.code || '').includes('CONSTRAINT')) {
+      return fail(reply, 409, 'USERNAME_TAKEN', '这个用户名已经被使用了。');
+    }
+    throw error;
+  }
+});
+
 /* ------------------------------------------------------------------ */
 /* bootstrap                                                           */
 /* ------------------------------------------------------------------ */
@@ -345,11 +368,16 @@ app.get('/api/public/search', async (req) => {
 
 app.post('/api/modules', { preHandler: requireAuth }, async (req, reply) => {
   const body = req.body || {};
+  const parentId = typeof body.parentId === 'string' && body.parentId ? body.parentId : null;
+  if (parentId && !getModule(parentId)) {
+    return fail(reply, 404, 'PARENT_NOT_FOUND', '父模块不存在。');
+  }
   const module = createModule({
     title: cleanTitle(body.title, '新模块'),
     icon: cleanIcon(body.icon, '🎮'),
     accent: cleanAccent(body.accent),
     isPublic: cleanBool(body.isPublic, true),
+    parentId,
   });
   return { module };
 });
@@ -357,20 +385,29 @@ app.post('/api/modules', { preHandler: requireAuth }, async (req, reply) => {
 app.patch('/api/modules/:id', { preHandler: requireAuth }, async (req, reply) => {
   if (!getModule(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '模块不存在。');
   const body = req.body || {};
-  const module = updateModule(req.params.id, {
-    ...(body.title !== undefined ? { title: cleanTitle(body.title, '新模块') } : {}),
-    ...(body.icon !== undefined ? { icon: cleanIcon(body.icon, '🎮') } : {}),
-    ...(body.accent !== undefined ? { accent: cleanAccent(body.accent) } : {}),
-    ...(body.isPublic !== undefined ? { isPublic: cleanBool(body.isPublic, true) } : {}),
-  });
-  return { module };
+  try {
+    const module = updateModule(req.params.id, {
+      ...(body.title !== undefined ? { title: cleanTitle(body.title, '新模块') } : {}),
+      ...(body.icon !== undefined ? { icon: cleanIcon(body.icon, '🎮') } : {}),
+      ...(body.accent !== undefined ? { accent: cleanAccent(body.accent) } : {}),
+      ...(body.isPublic !== undefined ? { isPublic: cleanBool(body.isPublic, true) } : {}),
+      ...(body.parentId !== undefined ? { parentId: body.parentId || null } : {}),
+    });
+    return { module };
+  } catch (error) {
+    if (error.message === 'MODULE_CYCLE') return fail(reply, 400, 'MODULE_CYCLE', '不能把模块移动到自己的子模块里。');
+    if (error.message === 'PARENT_NOT_FOUND') return fail(reply, 404, 'PARENT_NOT_FOUND', '父模块不存在。');
+    throw error;
+  }
 });
 
 app.delete('/api/modules/:id', { preHandler: requireAuth }, async (req, reply) => {
   if (!getModule(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '模块不存在。');
-  const count = db.prepare('SELECT COUNT(*) AS n FROM pages WHERE module_id = ?').get(req.params.id).n;
+  const ids = moduleSubtreeIds(req.params.id);
+  const placeholders = ids.map(() => '?').join(', ');
+  const count = db.prepare(`SELECT COUNT(*) AS n FROM pages WHERE module_id IN (${placeholders})`).get(...ids).n;
   deleteModule(req.params.id);
-  return { ok: true, deletedPages: count };
+  return { ok: true, deletedPages: count, deletedModules: ids.length };
 });
 
 app.post('/api/modules/reorder', { preHandler: requireAuth }, async (req, reply) => {
@@ -472,6 +509,20 @@ app.put('/api/settings/theme', { preHandler: requireAuth }, async (req, reply) =
   }
   setSetting('theme', theme);
   return { theme: getTheme() };
+});
+
+app.put('/api/settings/site', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body || {};
+  const name = String(body.name || '').trim();
+  const tagline = String(body.tagline || '').trim();
+  const logoUrl = String(body.logoUrl || '').trim();
+  if (!name || name.length > 40) return fail(reply, 400, 'INVALID_NAME', '站点名称需要 1–40 个字符。');
+  if (tagline.length > 100) return fail(reply, 400, 'INVALID_TAGLINE', '站点副标题最多 100 个字符。');
+  if (logoUrl && !logoUrl.startsWith('/api/assets/') && !logoUrl.startsWith('/api/public/assets/') && !/^https:\/\//i.test(logoUrl)) {
+    return fail(reply, 400, 'INVALID_LOGO', '图标地址不正确。');
+  }
+  const site = updateSiteSettings({ name, tagline, logoUrl });
+  return { site };
 });
 
 app.get('/api/search', { preHandler: requireAuth }, async (req) => {

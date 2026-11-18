@@ -56,7 +56,12 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
-  const [moduleDialog, setModuleDialog] = useState<{ open: boolean; module: Module | null }>({
+  const [moduleDialog, setModuleDialog] = useState<{
+    open: boolean;
+    module: Module | null;
+    parentId?: string | null;
+    parentTitle?: string;
+  }>({
     open: false,
     module: null,
   });
@@ -65,6 +70,20 @@ export function Sidebar({
     () => [...(data?.modules || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     [data?.modules],
   );
+
+  const modulesByParent = useMemo(() => {
+    const map = new Map<string, Module[]>();
+    for (const module of modules) {
+      const key = module.parentId || 'root';
+      const list = map.get(key) || [];
+      list.push(module);
+      map.set(key, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
+    return map;
+  }, [modules]);
+
+  const topModules = modulesByParent.get('root') || [];
 
   const pagesByParent = useMemo(() => {
     const map = new Map<string, PageMeta[]>();
@@ -117,11 +136,11 @@ export function Sidebar({
     }
   }
 
-  async function moveModule(module: Module, direction: -1 | 1) {
-    const index = modules.findIndex((item) => item.id === module.id);
+  async function moveModule(module: Module, direction: -1 | 1, siblings: Module[]) {
+    const index = siblings.findIndex((item) => item.id === module.id);
     const target = index + direction;
-    if (index < 0 || target < 0 || target >= modules.length) return;
-    const next = [...modules];
+    if (index < 0 || target < 0 || target >= siblings.length) return;
+    const next = [...siblings];
     [next[index], next[target]] = [next[target], next[index]];
     try {
       await api.reorderModules(next.map((item) => item.id));
@@ -142,11 +161,23 @@ export function Sidebar({
   }
 
   async function deleteModule(module: Module) {
-    const count = (data?.pages || []).filter((page) => page.moduleId === module.id).length;
+    const ids = new Set<string>([module.id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const item of modules) {
+        if (item.parentId && ids.has(item.parentId) && !ids.has(item.id)) {
+          ids.add(item.id);
+          changed = true;
+        }
+      }
+    }
+    const count = (data?.pages || []).filter((page) => ids.has(page.moduleId)).length;
+    const childCount = ids.size - 1;
     const ok = await confirm({
       title: `删除「${module.title}」？`,
-      message: count > 0
-        ? `模块里的 ${count} 个页面也会一起删除。这个操作不能撤销，建议先导出备份。`
+      message: count > 0 || childCount > 0
+        ? `模块里的 ${count} 个页面${childCount > 0 ? `、${childCount} 个子模块` : ''}也会一起删除。这个操作不能撤销，建议先导出备份。`
         : '这个模块会被永久删除，这个操作不能撤销。',
       confirmText: '删除模块',
       danger: true,
@@ -158,7 +189,11 @@ export function Sidebar({
       await refresh();
       if (location.pathname.startsWith('/page/')) {
         const current = data?.pages.find((page) => page.id === activePageId);
-        if (current?.moduleId === module.id) navigate('/');
+        if (current && ids.has(current.moduleId)) navigate('/');
+      }
+      if (location.pathname.startsWith('/module/')) {
+        const currentModuleId = decodeURIComponent(location.pathname.slice('/module/'.length).split('/')[0] || '');
+        if (ids.has(currentModuleId)) navigate('/');
       }
       toast('模块已删除。', 'success');
     } catch (error) {
@@ -178,9 +213,10 @@ export function Sidebar({
     }
   }
 
-  function moduleMenu(module: Module): MenuItem[] {
-    const index = modules.findIndex((item) => item.id === module.id);
+  function moduleMenu(module: Module, siblings: Module[]): MenuItem[] {
+    const index = siblings.findIndex((item) => item.id === module.id);
     return [
+      { label: '新建子模块', icon: FolderPlus, onSelect: () => setModuleDialog({ open: true, module: null, parentId: module.id, parentTitle: module.title }) },
       { label: '新建页面', icon: FilePlus2, onSelect: () => { void addPage(module.id); } },
       { label: '编辑模块', icon: Pencil, onSelect: () => setModuleDialog({ open: true, module }) },
       {
@@ -189,8 +225,8 @@ export function Sidebar({
         onSelect: () => { void togglePublic(module); },
       },
       { label: '', separator: true, onSelect: () => undefined },
-      { label: '上移', icon: ArrowUp, disabled: index <= 0, onSelect: () => { void moveModule(module, -1); } },
-      { label: '下移', icon: ArrowDown, disabled: index >= modules.length - 1, onSelect: () => { void moveModule(module, 1); } },
+      { label: '上移', icon: ArrowUp, disabled: index <= 0, onSelect: () => { void moveModule(module, -1, siblings); } },
+      { label: '下移', icon: ArrowDown, disabled: index >= siblings.length - 1, onSelect: () => { void moveModule(module, 1, siblings); } },
       { label: '', separator: true, onSelect: () => undefined },
       { label: '删除模块', icon: Trash2, danger: true, onSelect: () => { void deleteModule(module); } },
     ];
@@ -201,7 +237,11 @@ export function Sidebar({
       <aside className={cn('sidebar', open && 'is-open')}>
         <div className="sidebar-head">
           <button type="button" className="brand-button" onClick={() => go('/')} aria-label="回到总览">
-            <BrandLockup />
+            <BrandLockup
+              name={data?.site.name}
+              tagline={data?.site.tagline}
+              logoUrl={data?.site.logoUrl}
+            />
           </button>
           <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="关闭侧栏">
             <X size={18} />
@@ -245,79 +285,30 @@ export function Sidebar({
         </div>
 
         <div className="sidebar-tree">
-          {modules.length === 0 ? (
+          {topModules.length === 0 ? (
             <div className="sidebar-empty">
               <FolderPlus size={22} />
               <p>还没有模块</p>
-              <button type="button" onClick={() => setModuleDialog({ open: true, module: null })}>
+              <button type="button" onClick={() => setModuleDialog({ open: true, module: null, parentId: null })}>
                 创建第一个模块
               </button>
             </div>
-          ) : modules.map((module) => {
-            const key = `module:${module.id}`;
-            const isCollapsed = collapsed.has(key);
-            const rootPages = pagesByParent.get(key) || [];
-            const total = (data?.pages || []).filter((page) => page.moduleId === module.id).length;
-            return (
-              <div className="side-module" key={module.id}>
-                <div className="side-module-head">
-                  <button
-                    type="button"
-                    className="side-collapse"
-                    onClick={() => toggle(key)}
-                    aria-label={isCollapsed ? '展开模块' : '收起模块'}
-                  >
-                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  <button type="button" className="side-module-link" onClick={() => toggle(key)}>
-                    <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
-                      {module.icon}
-                    </span>
-                    <span className="side-module-name">{module.title}</span>
-                    {!module.isPublic ? <Lock size={10} className="side-private-mark" aria-label="私密模块" /> : null}
-                    <span className="side-module-count">{total}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn side-mini-btn"
-                    onClick={() => { void addPage(module.id); }}
-                    aria-label={`在 ${module.title} 中新建页面`}
-                    title="新建页面"
-                  >
-                    <Plus size={14} />
-                  </button>
-                  <DropdownMenu
-                    trigger={(
-                      <button type="button" className="icon-btn side-mini-btn" aria-label="模块菜单">
-                        <MoreHorizontal size={15} />
-                      </button>
-                    )}
-                    items={moduleMenu(module)}
-                  />
-                </div>
-                {!isCollapsed ? (
-                  <div className="side-pages">
-                    {rootPages.length === 0 ? (
-                      <button type="button" className="side-page-empty" onClick={() => { void addPage(module.id); }}>
-                        添加第一张页面
-                      </button>
-                    ) : rootPages.map((page) => (
-                      <PageNode
-                        key={page.id}
-                        page={page}
-                        depth={0}
-                        activeId={activePageId}
-                        pagesByParent={pagesByParent}
-                        collapsed={collapsed}
-                        onToggle={toggle}
-                        onNavigate={go}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+          ) : topModules.map((module) => (
+            <ModuleNode
+              key={module.id}
+              module={module}
+              depth={0}
+              siblings={topModules}
+              modulesByParent={modulesByParent}
+              pagesByParent={pagesByParent}
+              activePageId={activePageId}
+              collapsed={collapsed}
+              onToggle={toggle}
+              onNavigate={go}
+              onAddPage={(moduleId) => { void addPage(moduleId); }}
+              onMenu={moduleMenu}
+            />
+          ))}
         </div>
 
         <div className="sidebar-foot">
@@ -350,10 +341,120 @@ export function Sidebar({
       <ModuleDialog
         open={moduleDialog.open}
         module={moduleDialog.module}
+        parentId={moduleDialog.parentId ?? null}
+        parentTitle={moduleDialog.parentTitle}
         onClose={() => setModuleDialog({ open: false, module: null })}
-        onSaved={(saved) => { if (!moduleDialog.module) go(`/`); void saved; }}
+        onSaved={(saved) => { go(`/module/${saved.id}`); }}
       />
     </>
+  );
+}
+
+function ModuleNode({
+  module,
+  depth,
+  siblings,
+  modulesByParent,
+  pagesByParent,
+  activePageId,
+  collapsed,
+  onToggle,
+  onNavigate,
+  onAddPage,
+  onMenu,
+}: {
+  module: Module;
+  depth: number;
+  siblings: Module[];
+  modulesByParent: Map<string, Module[]>;
+  pagesByParent: Map<string, PageMeta[]>;
+  activePageId: string;
+  collapsed: Set<string>;
+  onToggle: (key: string) => void;
+  onNavigate: (path: string) => void;
+  onAddPage: (moduleId: string) => void;
+  onMenu: (module: Module, siblings: Module[]) => MenuItem[];
+}) {
+  const key = `module:${module.id}`;
+  const isCollapsed = collapsed.has(key);
+  const pages = pagesByParent.get(key) || [];
+  const children = modulesByParent.get(module.id) || [];
+  const hasChildren = pages.length > 0 || children.length > 0;
+  return (
+    <div className="side-module" style={depth > 0 ? { marginLeft: 10 + depth * 4 } : undefined}>
+      <div className="side-module-head">
+        <button
+          type="button"
+          className="side-collapse"
+          onClick={() => onToggle(key)}
+          aria-label={isCollapsed ? '展开模块' : '收起模块'}
+          style={{ opacity: hasChildren ? 1 : 0.35 }}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+        </button>
+        <button type="button" className="side-module-link" onClick={() => onToggle(key)}>
+          <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
+            {module.icon}
+          </span>
+          <span className="side-module-name">{module.title}</span>
+          {!module.isPublic ? <Lock size={10} className="side-private-mark" aria-label="私密模块" /> : null}
+          <span className="side-module-count">{pages.length + children.length}</span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn side-mini-btn"
+          onClick={() => onAddPage(module.id)}
+          aria-label={`在 ${module.title} 中新建页面`}
+          title="新建页面"
+        >
+          <Plus size={14} />
+        </button>
+        <DropdownMenu
+          trigger={(
+            <button type="button" className="icon-btn side-mini-btn" aria-label="模块菜单">
+              <MoreHorizontal size={15} />
+            </button>
+          )}
+          items={onMenu(module, siblings)}
+        />
+      </div>
+      {!isCollapsed ? (
+        <div className="side-pages">
+          {pages.length === 0 ? (
+            <button type="button" className="side-page-empty" onClick={() => onAddPage(module.id)}>
+              添加第一张页面
+            </button>
+          ) : pages.map((page) => (
+            <PageNode
+              key={page.id}
+              page={page}
+              depth={depth}
+              activeId={activePageId}
+              pagesByParent={pagesByParent}
+              collapsed={collapsed}
+              onToggle={onToggle}
+              onNavigate={onNavigate}
+            />
+          ))}
+          {children.map((child) => (
+            <ModuleNode
+              key={child.id}
+              module={child}
+              depth={depth + 1}
+              siblings={children}
+              modulesByParent={modulesByParent}
+              pagesByParent={pagesByParent}
+              activePageId={activePageId}
+              collapsed={collapsed}
+              onToggle={onToggle}
+              onNavigate={onNavigate}
+              onAddPage={onAddPage}
+              onMenu={onMenu}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

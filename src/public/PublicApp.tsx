@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { applyTheme } from '../theme';
-import type { PageMeta, PublicBootstrap } from '../types';
+import type { Module, PageMeta, PublicBootstrap } from '../types';
 import { cn, formatRelativeTime, getErrorMessage } from '../utils';
 import { BrandLockup, BrandMark } from '../components/BrandMark';
 import { SearchDialog } from '../components/SearchDialog';
@@ -63,6 +63,10 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
   useEffect(() => {
     if (!data) return;
     document.title = `${data.site.name} · ${data.site.tagline}`;
+    if (data.site.logoUrl) {
+      const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (icon) icon.href = data.site.logoUrl;
+    }
   }, [data]);
 
   useEffect(() => {
@@ -173,7 +177,7 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
             <Route path="*" element={<PublicMissing />} />
           </Routes>
           <footer className="public-global-foot">
-            <span>DEVFORGE · 公开学习舱</span>
+            <span>{data.site.name} · 公开学习舱</span>
             <span><Eye size={11} /> 只读浏览 · 内容由管理员维护</span>
             {data.icp?.number ? (
               <a href={data.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
@@ -213,6 +217,18 @@ function PublicSidebar({
     () => [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder),
     [data.modules],
   );
+  const modulesByParent = useMemo(() => {
+    const map = new Map<string, Module[]>();
+    for (const module of modules) {
+      const key = module.parentId || 'root';
+      const list = map.get(key) || [];
+      list.push(module);
+      map.set(key, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
+    return map;
+  }, [modules]);
+  const topModules = modulesByParent.get('root') || [];
   const pagesByParent = useMemo(() => {
     const map = new Map<string, PageMeta[]>();
     for (const page of data.pages) {
@@ -269,11 +285,47 @@ function PublicSidebar({
     );
   }
 
+  function renderModule(module: Module, depth: number): ReactElement {
+    const key = `module:${module.id}`;
+    const isCollapsed = collapsed.has(key);
+    const pages = pagesByParent.get(key) || [];
+    const children = modulesByParent.get(module.id) || [];
+    return (
+      <div className="side-module" key={module.id} style={depth > 0 ? { marginLeft: 10 + depth * 4 } : undefined}>
+        <div className="side-module-head">
+          <button type="button" className="side-collapse" onClick={() => toggle(key)} aria-label={isCollapsed ? '展开模块' : '收起模块'}>
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <button type="button" className="side-module-link" onClick={() => go(`/module/${module.id}`)}>
+            <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
+              {module.icon}
+            </span>
+            <span className="side-module-name">{module.title}</span>
+            <span className="side-module-count">{pages.length + children.length}</span>
+          </button>
+        </div>
+        {!isCollapsed ? (
+          <div className="side-pages">
+            {pages.map((page) => renderPage(page, depth))}
+            {children.map((child) => renderModule(child, depth + 1))}
+            {pages.length === 0 && children.length === 0 ? (
+              <span className="side-page-empty">暂无公开页面</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <aside className={cn('sidebar public-sidebar', open && 'is-open')}>
       <div className="sidebar-head">
         <button type="button" className="brand-button" onClick={() => go('/')} aria-label="公开首页">
-          <BrandLockup />
+          <BrandLockup
+            name={data.site.name}
+            tagline={data.site.tagline}
+            logoUrl={data.site.logoUrl}
+          />
         </button>
         <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="关闭侧栏">
           <X size={18} />
@@ -306,40 +358,12 @@ function PublicSidebar({
       </div>
 
       <div className="sidebar-tree">
-        {modules.length === 0 ? (
+        {topModules.length === 0 ? (
           <div className="sidebar-empty">
             <Globe2 size={22} />
             <p>还没有公开模块</p>
           </div>
-        ) : modules.map((module) => {
-          const key = `module:${module.id}`;
-          const isCollapsed = collapsed.has(key);
-          const rootPages = pagesByParent.get(key) || [];
-          const total = data.pages.filter((page) => page.moduleId === module.id).length;
-          return (
-            <div className="side-module" key={module.id}>
-              <div className="side-module-head">
-                <button type="button" className="side-collapse" onClick={() => toggle(key)} aria-label={isCollapsed ? '展开模块' : '收起模块'}>
-                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                </button>
-                <button type="button" className="side-module-link" onClick={() => go(`/module/${module.id}`)}>
-                  <span className="side-module-icon" style={{ backgroundColor: `${module.accent}1a`, color: module.accent }}>
-                    {module.icon}
-                  </span>
-                  <span className="side-module-name">{module.title}</span>
-                  <span className="side-module-count">{total}</span>
-                </button>
-              </div>
-              {!isCollapsed ? (
-                <div className="side-pages">
-                  {rootPages.length ? rootPages.map((page) => renderPage(page, 0)) : (
-                    <span className="side-page-empty">暂无公开页面</span>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+        ) : topModules.map((module) => renderModule(module, 0))}
       </div>
 
       <div className="sidebar-foot public-sidebar-foot">

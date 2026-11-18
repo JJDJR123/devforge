@@ -45,7 +45,12 @@ export function Dashboard() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const navigate = useNavigate();
-  const [moduleDialog, setModuleDialog] = useState<{ open: boolean; module: Module | null }>({
+  const [moduleDialog, setModuleDialog] = useState<{
+    open: boolean;
+    module: Module | null;
+    parentId?: string | null;
+    parentTitle?: string;
+  }>({
     open: false,
     module: null,
   });
@@ -64,6 +69,7 @@ export function Dashboard() {
   if (!data) return null;
 
   const modules = [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder);
+  const topModules = modules.filter((module) => !module.parentId);
   const recent = data.recent;
   const modulesById = new Map(modules.map((module) => [module.id, module]));
 
@@ -230,7 +236,7 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="module-grid">
-              {modules.map((module) => {
+              {topModules.map((module) => {
                 const modulePages = pagesByModule.get(module.id) || [];
                 const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
                 const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
@@ -257,6 +263,7 @@ export function Dashboard() {
                         )}
                         items={[
                           { label: '打开模块', icon: ArrowRight, onSelect: () => navigate(`/module/${module.id}`) },
+                          { label: '新建子模块', icon: FolderPlus, onSelect: () => setModuleDialog({ open: true, module: null, parentId: module.id, parentTitle: module.title }) },
                           { label: '新建页面', icon: FilePlus2, onSelect: () => { void addPage(module.id); } },
                           { label: '编辑模块', icon: Pencil, onSelect: () => setModuleDialog({ open: true, module }) },
                           {
@@ -368,6 +375,8 @@ export function Dashboard() {
       <ModuleDialog
         open={moduleDialog.open}
         module={moduleDialog.module}
+        parentId={moduleDialog.parentId ?? null}
+        parentTitle={moduleDialog.parentTitle}
         onClose={() => setModuleDialog({ open: false, module: null })}
       />
     </div>
