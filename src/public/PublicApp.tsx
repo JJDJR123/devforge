@@ -164,7 +164,7 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
                 返回管理 <ArrowLeft size={13} />
               </button>
             ) : (
-              <span className="public-topbar-badge"><Eye size={12} /> 只读浏览</span>
+              <span className="public-topbar-badge"><Eye size={12} /> 游客 · 只读</span>
             )}
           </div>
         </header>
@@ -179,7 +179,7 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
           </Routes>
           <footer className="public-global-foot">
             <span>{data.site.name} · 公开学习舱</span>
-            <span><Eye size={11} /> 只读浏览 · 内容由管理员维护</span>
+            <span><Eye size={11} /> 游客浏览 · 只读 · 内容由管理员维护</span>
             {data.icp?.number ? (
               <a href={data.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
                 {data.icp.number}
@@ -335,7 +335,7 @@ function PublicSidebar({
 
       <div className="public-side-label">
         <span><Globe2 size={12} /> 公开学习舱</span>
-        <em>READ ONLY</em>
+        <em>GUEST / READ ONLY</em>
       </div>
 
       <div className="sidebar-actions">
@@ -370,7 +370,7 @@ function PublicSidebar({
       <div className="sidebar-foot public-sidebar-foot">
         <div className="public-sidebar-note">
           <Eye size={13} />
-          <span>只读浏览模式</span>
+          <span>游客浏览模式</span>
         </div>
         <div className="public-sidebar-note is-muted">
           <FileText size={12} />

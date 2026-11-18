@@ -20,7 +20,17 @@ import { getErrorMessage } from '../utils';
 
 type Mode = 'setup' | 'login';
 
-export function AuthScreen({ mode }: { mode: Mode }) {
+export function AuthScreen({
+  mode,
+  allowGuest = false,
+  onGuest,
+  onLoginSuccess,
+}: {
+  mode: Mode;
+  allowGuest?: boolean;
+  onGuest?: () => void;
+  onLoginSuccess?: () => void;
+}) {
   const { setup, login, icp } = useApp();
   const [token, setToken] = useState('');
   const [username, setUsername] = useState('');
@@ -63,6 +73,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
       } else {
         await login(username.trim(), password);
       }
+      onLoginSuccess?.();
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -80,13 +91,15 @@ export function AuthScreen({ mode }: { mode: Mode }) {
         <div className="auth-card">
           <div className="auth-kicker">
             <span className={isSetup ? 'status-dot is-warm' : 'status-dot'} />
-            {isSetup ? 'FIRST BOOT · 首次初始化' : 'SINGLE USER · 私人学习舱'}
+            {isSetup ? 'FIRST BOOT · 首次初始化' : allowGuest ? 'ADMIN / GUEST · 选择进入方式' : 'ADMIN · 管理员登录'}
           </div>
-          <h2>{isSetup ? '点火，建立你的学习舱' : '欢迎回来'}</h2>
+          <h2>{isSetup ? '点火，建立你的学习舱' : allowGuest ? '进入学习舱' : '欢迎回来'}</h2>
           <p className="auth-lead">
             {isSetup
               ? '这是第一次启动。设置一个管理员账号，之后所有电脑都用它登录。'
-              : '登录后继续搭建你的独立游戏开发知识库。'}
+              : allowGuest
+                ? '管理员登录后可以编辑和管理内容；没有账号，直接以游客身份浏览公开内容。'
+                : '登录管理端，继续搭建你的独立游戏开发知识库。'}
           </p>
 
           <form className="auth-form" onSubmit={submit}>
@@ -159,10 +172,19 @@ export function AuthScreen({ mode }: { mode: Mode }) {
 
             <button type="submit" className="btn btn-primary auth-submit" disabled={busy}>
               {busy ? <Loader2 size={17} className="spin" /> : null}
-              {busy ? '正在进入…' : isSetup ? '建立学习舱' : '进入学习舱'}
+              {busy ? '正在进入…' : isSetup ? '建立学习舱' : allowGuest ? '管理员登录' : '进入学习舱'}
               {!busy ? <ArrowRight size={17} /> : null}
             </button>
           </form>
+
+          {allowGuest && !isSetup ? (
+            <div className="auth-guest-entry">
+              <span>没有管理员账号？</span>
+              <button type="button" className="btn btn-ghost" onClick={onGuest}>
+                <Eye size={16} /> 以游客身份进入
+              </button>
+            </div>
+          ) : null}
 
           {isSetup ? (
             <div className="auth-hint">
@@ -181,7 +203,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
                 <div className="auth-hint">
                   <Terminal size={15} />
                   <span>
-                    在服务器执行 <code>docker compose exec app node server/reset-password.js &lt;用户名&gt; 新密码</code>
+                    在服务器执行 <code>sudo runuser -u devforge -- /opt/node/bin/node /opt/devforge/server/reset-password.js &lt;用户名&gt; 新密码</code>
                   </span>
                 </div>
               ) : null}
@@ -190,7 +212,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
         </div>
 
         <div className="auth-legal">
-          <ShieldCheck size={13} /> 单用户模式 · 不开放公开注册 · 数据保存在你自己的服务器
+          <ShieldCheck size={13} /> 单管理员 · 游客只读 · 不开放注册 · 数据保存在你自己的服务器
           {icp?.number ? (
             <a href={icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
               {icp.number}
