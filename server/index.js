@@ -61,6 +61,7 @@ import {
   getPublicBootstrap,
   getPublicPage,
   getPublicPageBreadcrumb,
+  getPublicPageLinks,
   getUserById,
   getUserByUsername,
   getTheme,
@@ -369,6 +370,11 @@ app.get('/api/public/pages/:id', async (req, reply) => {
     page: { ...page, blocks: publicAssetBlocks(page.blocks) },
     breadcrumb: getPublicPageBreadcrumb(page.id),
   };
+});
+
+app.get('/api/public/pages/:id/links', async (req, reply) => {
+  if (!getPublicPage(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '页面不存在或未公开。');
+  return getPublicPageLinks(req.params.id);
 });
 
 app.get('/api/public/search', async (req) => {

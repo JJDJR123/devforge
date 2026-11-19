@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronRight, Eye, FileText } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, FileText, Link2 } from 'lucide-react';
 import { api } from '../api';
-import type { Breadcrumb, Page, PublicBootstrap } from '../types';
-import { formatNumber, formatRelativeTime, getErrorMessage } from '../utils';
+import type { Breadcrumb, Page, PageLinks, PublicBootstrap } from '../types';
+import { cn, formatNumber, formatRelativeTime, getErrorMessage } from '../utils';
 import { PublicBlockEditor } from './PublicBlockEditor';
 
 export function PublicPage({ data }: { data: PublicBootstrap }) {
@@ -11,8 +11,18 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
   const navigate = useNavigate();
   const [page, setPage] = useState<Page | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<Breadcrumb | null>(null);
+  const [links, setLinks] = useState<PageLinks>({ outgoing: [], backlinks: [] });
+  const [linksOpen, setLinksOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api.publicPageLinks(pageId)
+      .then((result) => { if (!cancelled) setLinks(result); })
+      .catch(() => { if (!cancelled) setLinks({ outgoing: [], backlinks: [] }); });
+    return () => { cancelled = true; };
+  }, [pageId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +137,66 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
           </div>
         )}
       </div>
+
+      <section className={cn('page-links-panel public-page-links', linksOpen && 'is-open')}>
+        <div className="page-links-head">
+          <div>
+            <span className="eyebrow"><Link2 size={12} /> KNOWLEDGE LINKS</span>
+            <h2>知识链接</h2>
+          </div>
+          <button
+            type="button"
+            className="page-links-toggle"
+            onClick={() => setLinksOpen((value) => !value)}
+            aria-expanded={linksOpen}
+          >
+            <span>出链 {links.outgoing.length} · 回链 {links.backlinks.length}</span>
+            <ChevronDown size={15} className={cn(linksOpen && 'is-open')} />
+          </button>
+        </div>
+        {linksOpen ? (
+          <div className="page-links-grid">
+            <div className="page-links-column">
+              <h3>出链 <span>{links.outgoing.length}</span></h3>
+              {links.outgoing.length ? links.outgoing.map((link) => (
+                (link.targetPageId || link.targetModuleId) ? (
+                  <button
+                    key={link.id}
+                    type="button"
+                    className="page-link-item"
+                    onClick={() => navigate(link.targetPageId
+                      ? `/page/${link.targetPageId}`
+                      : `/module/${link.targetModuleId}`)}
+                  >
+                    <span className="page-link-icon">{link.icon}</span>
+                    <span>
+                      <strong>{link.alias || link.targetTitle}</strong>
+                      <em>{link.targetType === 'module' ? '模块 · ' : ''}{link.context}</em>
+                    </span>
+                  </button>
+                ) : null
+              )) : <p className="page-links-empty">这篇笔记还没有出链。</p>}
+            </div>
+            <div className="page-links-column">
+              <h3>反向链接 <span>{links.backlinks.length}</span></h3>
+              {links.backlinks.length ? links.backlinks.map((link) => (
+                <button
+                  key={link.id}
+                  type="button"
+                  className="page-link-item"
+                  onClick={() => navigate(`/page/${link.sourcePageId}`)}
+                >
+                  <span className="page-link-icon">{link.icon}</span>
+                  <span>
+                    <strong>{link.sourceTitle}</strong>
+                    <em>{link.context}</em>
+                  </span>
+                </button>
+              )) : <p className="page-links-empty">还没有其他公开页面提到这里。</p>}
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       <div className="page-end">
         <span className="page-end-line" />

@@ -35,6 +35,11 @@ import type { Module, PageMeta } from '../types';
 import { cn, getErrorMessage, isApplePlatform } from '../utils';
 
 const COLLAPSE_KEY = 'devforge.collapsed';
+const UPDATE_SEEN_KEY = 'devforge.update.2026-11-19.seen';
+
+function readUpdateSeen(): boolean {
+  try { return localStorage.getItem(UPDATE_SEEN_KEY) === '1'; } catch { return false; }
+}
 
 function readCollapsed(): Set<string> {
   try {
@@ -60,6 +65,7 @@ export function Sidebar({
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [updatesOpen, setUpdatesOpen] = useState(false);
+  const [updateUnread, setUpdateUnread] = useState(() => !readUpdateSeen());
   const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
   const [moduleDialog, setModuleDialog] = useState<{
     open: boolean;
@@ -285,11 +291,15 @@ export function Sidebar({
           <button
             type="button"
             className="nav-item nav-item-update"
-            onClick={() => setUpdatesOpen(true)}
+            onClick={() => {
+              setUpdatesOpen(true);
+              setUpdateUnread(false);
+              try { localStorage.setItem(UPDATE_SEEN_KEY, '1'); } catch { /* ignore */ }
+            }}
           >
             <Megaphone size={17} />
             <span>更新公告</span>
-            <em>NEW</em>
+            {updateUnread ? <em>NEW</em> : null}
           </button>
         </nav>
 
@@ -386,7 +396,7 @@ export function Sidebar({
               </div>
               <div className="update-item">
                 <strong>知识链接抽屉</strong>
-                <p>出链和反向链接收到页面底部抽屉里，需要时展开，不占正文空间。</p>
+                <p>出链和反向链接收到页面底部抽屉里，需要时展开；管理员和公开站都能看。</p>
               </div>
               <div className="update-item">
                 <strong>复制链接修复</strong>

@@ -51,6 +51,7 @@ export function PageView() {
   const [links, setLinks] = useState<PageLinks>({ outgoing: [], backlinks: [] });
   const [linksOpen, setLinksOpen] = useState(false);
   const [linksLoading, setLinksLoading] = useState(false);
+  const [creatingLinkId, setCreatingLinkId] = useState('');
   const [iconOpen, setIconOpen] = useState(false);
   const latestBlocks = useRef<BlockRecord[]>([]);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,6 +212,27 @@ export function PageView() {
   async function copyLink() {
     const ok = await copyText(`${window.location.origin}/page/${page?.id}`);
     toast(ok ? '页面链接已复制。' : '浏览器不允许复制，请手动复制地址栏。', ok ? 'success' : 'error');
+  }
+
+  async function createLinkedPage(link: PageLinks['outgoing'][number]) {
+    if (!page || creatingLinkId) return;
+    if (link.rawTitle.startsWith('模块:')) return;
+    setCreatingLinkId(link.id);
+    try {
+      const result = await api.createPage({
+        moduleId: page.moduleId,
+        parentId: null,
+        title: link.rawTitle,
+        icon: '📄',
+      });
+      await refresh();
+      navigate(`/page/${result.page.id}`);
+      toast('已创建并打开目标页面。', 'success');
+    } catch (createError) {
+      toast(getErrorMessage(createError), 'error');
+    } finally {
+      setCreatingLinkId('');
+    }
   }
 
   async function retrySave() {
@@ -436,6 +458,17 @@ export function PageView() {
                           <strong>{link.alias || link.rawTitle}</strong>
                           <em>未创建 · {link.context}</em>
                         </span>
+                        {link.rawTitle.startsWith('模块:') ? null : (
+                          <button
+                            type="button"
+                            className="page-link-create"
+                            onClick={() => { void createLinkedPage(link); }}
+                            disabled={Boolean(creatingLinkId)}
+                          >
+                            {creatingLinkId === link.id ? <Loader2 size={11} className="spin" /> : <FilePlus2 size={11} />}
+                            创建
+                          </button>
+                        )}
                       </div>
                     )
                   )) : <p className="page-links-empty">还没有出链。在正文里插入 [[页面标题]]。</p>}

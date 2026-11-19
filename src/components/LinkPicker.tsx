@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, FolderTree, Search, X } from 'lucide-react';
 import type { Module, PageMeta } from '../types';
+import { cn } from '../utils';
 
 export function LinkPicker({
   open,
@@ -20,11 +21,13 @@ export function LinkPicker({
   onSelect: (kind: 'page' | 'module', id: string, title: string) => void;
 }) {
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
+    setActiveIndex(0);
     const timer = window.setTimeout(() => inputRef.current?.focus(), 30);
     return () => window.clearTimeout(timer);
   }, [open]);
@@ -59,6 +62,22 @@ export function LinkPicker({
     })
     .slice(0, 30);
 
+  const items = [
+    ...matchedModules.map((module) => ({ kind: 'module' as const, id: module.id, title: module.title })),
+    ...matchedPages.map((page) => ({ kind: 'page' as const, id: page.id, title: page.title })),
+  ];
+  const active = Math.min(activeIndex, Math.max(0, items.length - 1));
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
+
+  function choose(index: number) {
+    const item = items[index];
+    if (!item) return;
+    onSelect(item.kind, item.id, item.title);
+  }
+
   if (!open) return null;
 
   return (
@@ -80,6 +99,18 @@ export function LinkPicker({
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setActiveIndex((index) => items.length ? (index + 1) % items.length : 0);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setActiveIndex((index) => items.length ? (index - 1 + items.length) % items.length : 0);
+              } else if (event.key === 'Enter') {
+                event.preventDefault();
+                choose(active);
+              }
+            }}
             placeholder="搜索页面标题、模块名，或关键词…"
             spellCheck={false}
           />
@@ -94,11 +125,12 @@ export function LinkPicker({
           {matchedModules.length ? (
             <div className="link-picker-group">
               <span className="link-picker-label">模块</span>
-              {matchedModules.map((module) => (
+              {matchedModules.map((module, index) => (
                 <button
                   key={module.id}
                   type="button"
-                  className="link-picker-item"
+                  className={cn('link-picker-item', active === index && 'is-active')}
+                  onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => onSelect('module', module.id, module.title)}
                 >
                   <span className="link-picker-icon"><FolderTree size={15} /></span>
@@ -114,11 +146,12 @@ export function LinkPicker({
           {matchedPages.length ? (
             <div className="link-picker-group">
               <span className="link-picker-label">页面</span>
-              {matchedPages.map((page) => (
+              {matchedPages.map((page, index) => (
                 <button
                   key={page.id}
                   type="button"
-                  className="link-picker-item"
+                  className={cn('link-picker-item', active === matchedModules.length + index && 'is-active')}
+                  onMouseEnter={() => setActiveIndex(matchedModules.length + index)}
                   onClick={() => onSelect('page', page.id, page.title)}
                 >
                   <span className="link-picker-icon"><FileText size={15} /></span>

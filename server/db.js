@@ -543,6 +543,21 @@ export function getPublicPageBreadcrumb(id) {
   return getPageBreadcrumb(id);
 }
 
+export function getPublicPageLinks(id) {
+  if (!getPublicPage(id)) return { outgoing: [], backlinks: [] };
+  const links = getPageLinks(id);
+  const publicModules = publicModuleIdSet();
+  const publicPages = new Set(listPublicPageMeta().map((page) => page.id));
+  return {
+    outgoing: links.outgoing.filter((link) => (
+      link.targetType === 'module'
+        ? Boolean(link.targetModuleId && publicModules.has(link.targetModuleId))
+        : Boolean(link.targetPageId && publicPages.has(link.targetPageId))
+    )),
+    backlinks: links.backlinks.filter((link) => publicPages.has(link.sourcePageId)),
+  };
+}
+
 export function createPage({ moduleId, parentId = null, title = '未命名页面', icon = '📄', blocks = [] }) {
   let targetModule = moduleId;
   if (parentId) {

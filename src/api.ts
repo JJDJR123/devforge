@@ -128,6 +128,9 @@ export const api = {
   publicPage: (id: string) =>
     request<{ page: Page; breadcrumb: Breadcrumb }>(`/api/public/pages/${encodeURIComponent(id)}`),
 
+  publicPageLinks: (id: string) =>
+    request<PageLinks>(`/api/public/pages/${encodeURIComponent(id)}/links`),
+
   publicSearch: (q: string) =>
     request<{ query: string; results: SearchResult[] }>(`/api/public/search?q=${encodeURIComponent(q)}`),
 
