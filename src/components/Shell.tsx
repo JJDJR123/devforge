@@ -10,7 +10,7 @@ import { ModuleView } from '../views/ModuleView';
 import { PageView } from '../views/PageView';
 import { SettingsView } from '../views/SettingsView';
 import { useApp } from '../state/AppContext';
-import { cn } from '../utils';
+import { cn, isApplePlatform } from '../utils';
 
 export function Shell() {
   const { data } = useApp();
@@ -18,6 +18,7 @@ export function Shell() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -72,7 +73,7 @@ export function Shell() {
           <button type="button" className="topbar-search" onClick={() => setSearchOpen(true)}>
             <Search size={15} />
             <span>搜索</span>
-            <kbd>⌘ K</kbd>
+            <kbd>{searchShortcut}</kbd>
           </button>
 
           <div className="topbar-right">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   SuggestionMenuController,
   getDefaultReactSlashMenuItems,
@@ -16,6 +17,7 @@ import { useToast } from './Toast';
 import { useApp } from '../state/AppContext';
 import { EmbedBlock } from './EmbedBlock';
 import { LinkPicker } from './LinkPicker';
+import { wikiLinksToMarks } from '../wikilinks';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -41,6 +43,7 @@ export function BlockEditor({
 }) {
   const { toast } = useToast();
   const { theme, data } = useApp();
+  const navigate = useNavigate();
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const latest = useRef<any[]>(page.blocks);
@@ -55,7 +58,9 @@ export function BlockEditor({
   const editor = useCreateBlockNote({
     schema,
     dictionary: zh,
-    initialContent: page.blocks.length ? (page.blocks as unknown as PartialBlock[]) : undefined,
+    initialContent: page.blocks.length
+      ? (wikiLinksToMarks(page.blocks, data?.pages || [], data?.modules || []) as unknown as PartialBlock[])
+      : undefined,
     uploadFile: async (file: File) => {
       try {
         const result = await api.upload(file);
@@ -163,17 +168,22 @@ export function BlockEditor({
     };
   }
 
-  function insertWikiLink(kind: 'page' | 'module', title: string) {
-    const text = kind === 'module' ? `[[模块:${title}]]` : `[[${title}]]`;
+  function insertWikiLink(kind: 'page' | 'module', id: string, title: string) {
+    const href = kind === 'module' ? `/module/${id}` : `/page/${id}`;
+    const inline = {
+      type: 'link',
+      href,
+      content: [{ type: 'text', text: title, styles: {} }],
+    } as never;
     setLinkPickerOpen(false);
     try {
-      editor.insertInlineContent([{ type: 'text', text, styles: {} }]);
+      editor.insertInlineContent([inline]);
       editor.focus();
     } catch {
       try {
         const fallbackBlock = {
           type: 'paragraph',
-          content: [{ type: 'text', text, styles: {} }],
+          content: [inline],
         } as never;
         if (editor.document.length) {
           editor.insertBlocks([fallbackBlock], editor.document[editor.document.length - 1], 'after');
@@ -188,7 +198,17 @@ export function BlockEditor({
   }
 
   return (
-    <div className="editor-wrap">
+    <div
+      className="editor-wrap"
+      onClickCapture={(event) => {
+        const target = event.target as HTMLElement;
+        const anchor = target.closest<HTMLAnchorElement>('a[href^="/page/"], a[href^="/module/"]');
+        if (!anchor || !anchor.closest('.devforge-editor')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        navigate(anchor.getAttribute('href') || '/');
+      }}
+    >
       <div className="editor-link-bar">
         <button type="button" className="editor-link-launch" onClick={() => setLinkPickerOpen(true)}>
           <Link2 size={14} /> 关联笔记

@@ -612,6 +612,49 @@ export function deletePage(id) {
 
 const WIKI_LINK_RE = /\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]/g;
 
+function extractInlineLinkTargets(blocks) {
+  const targets = [];
+  const visitContent = (content) => {
+    if (!Array.isArray(content)) return;
+    for (const item of content) {
+      if (!item || typeof item !== 'object') continue;
+      if (item.type === 'link' && typeof item.href === 'string') {
+        const text = (item.content || [])
+          .map((child) => (child && typeof child.text === 'string' ? child.text : ''))
+          .join('')
+          .trim();
+        const pageMatch = item.href.match(/^\/page\/([^/?#]+)/);
+        const moduleMatch = item.href.match(/^\/module\/([^/?#]+)/);
+        if (pageMatch) targets.push({ kind: 'page', id: pageMatch[1], title: text });
+        else if (moduleMatch) targets.push({ kind: 'module', id: moduleMatch[1], title: text });
+        continue;
+      }
+      if (item.type !== 'text') continue;
+      const href = (item.marks || []).find((mark) => mark?.type === 'link')?.href;
+      if (typeof href !== 'string') continue;
+      const pageMatch = href.match(/^\/page\/([^/?#]+)/);
+      const moduleMatch = href.match(/^\/module\/([^/?#]+)/);
+      if (pageMatch) targets.push({ kind: 'page', id: pageMatch[1], title: String(item.text || '').trim() });
+      else if (moduleMatch) targets.push({ kind: 'module', id: moduleMatch[1], title: String(item.text || '').trim() });
+    }
+  };
+  const walk = (list) => {
+    if (!Array.isArray(list)) return;
+    for (const block of list) {
+      if (!block || typeof block !== 'object') continue;
+      visitContent(block.content);
+      if (block.content?.type === 'tableContent') {
+        for (const row of block.content.rows || []) {
+          for (const cell of row.cells || []) visitContent(cell);
+        }
+      }
+      if (Array.isArray(block.children)) walk(block.children);
+    }
+  };
+  walk(blocks);
+  return targets;
+}
+
 export function rebuildPageLinks(pageId) {
   const source = db.prepare('SELECT id, module_id, title, blocks FROM pages WHERE id = ?').get(pageId);
   if (!source) return;
@@ -674,6 +717,29 @@ export function rebuildPageLinks(pageId) {
     });
   }
 
+  const pagesById = new Map(pages.map((page) => [page.id, page]));
+  const modulesById = new Map(modules.map((module) => [module.id, module]));
+  for (const inline of extractInlineLinkTargets(blocks)) {
+    const isModule = inline.kind === 'module';
+    const targetPage = isModule ? null : pagesById.get(inline.id) || null;
+    const targetModule = isModule ? modulesById.get(inline.id) || null : null;
+    if (targetPage?.id === pageId) continue;
+    const key = isModule ? `module:${inline.id}` : `page:${inline.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const title = targetPage?.title || targetModule?.title || inline.title || '未命名';
+    links.push({
+      id: uid(),
+      sourcePageId: pageId,
+      targetPageId: targetPage?.id || null,
+      targetModuleId: targetModule?.id || null,
+      targetTitle: title,
+      alias: null,
+      context: `内联链接：${title}`,
+      createdAt: now(),
+    });
+  }
+
   const insert = db.prepare(`
     INSERT INTO page_links (id, source_page_id, target_page_id, target_module_id, target_title, alias, context, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -685,7 +751,6 @@ export function rebuildPageLinks(pageId) {
     );
   }
 }
-
 export function rebuildAllPageLinks() {
   const ids = db.prepare('SELECT id FROM pages').all().map((row) => row.id);
   for (const id of ids) rebuildPageLinks(id);
@@ -1036,7 +1101,14 @@ function extractSearchText(blocks) {
       if (!block || typeof block !== 'object') continue;
       if (Array.isArray(block.content)) {
         for (const item of block.content) {
-          if (item && typeof item.text === 'string') out.push(item.text);
+          if (!item || typeof item !== 'object') continue;
+          if (item.type === 'link' && Array.isArray(item.content)) {
+            for (const child of item.content) {
+              if (child && typeof child.text === 'string') out.push(child.text);
+            }
+          } else if (typeof item.text === 'string') {
+            out.push(item.text);
+          }
         }
       }
       if (block.type === 'table' && block.content?.type === 'tableContent') {

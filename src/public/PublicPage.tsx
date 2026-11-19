@@ -114,7 +114,12 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
 
       <div className="public-page-body">
         {page.blocks.length ? (
-          <PublicBlockEditor blocks={page.blocks} theme={data.theme} />
+          <PublicBlockEditor
+            blocks={page.blocks}
+            pages={data.pages}
+            modules={data.modules}
+            theme={data.theme}
+          />
         ) : (
           <div className="public-empty-page">
             <FileText size={24} />

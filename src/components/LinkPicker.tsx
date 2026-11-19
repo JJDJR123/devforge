@@ -17,7 +17,7 @@ export function LinkPicker({
   currentPageId: string;
   currentModuleId: string;
   onClose: () => void;
-  onSelect: (kind: 'page' | 'module', title: string) => void;
+  onSelect: (kind: 'page' | 'module', id: string, title: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +99,7 @@ export function LinkPicker({
                   key={module.id}
                   type="button"
                   className="link-picker-item"
-                  onClick={() => onSelect('module', module.title)}
+                  onClick={() => onSelect('module', module.id, module.title)}
                 >
                   <span className="link-picker-icon"><FolderTree size={15} /></span>
                   <span className="link-picker-text">
@@ -119,7 +119,7 @@ export function LinkPicker({
                   key={page.id}
                   type="button"
                   className="link-picker-item"
-                  onClick={() => onSelect('page', page.title)}
+                  onClick={() => onSelect('page', page.id, page.title)}
                 >
                   <span className="link-picker-icon"><FileText size={15} /></span>
                   <span className="link-picker-text">

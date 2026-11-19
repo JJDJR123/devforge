@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   Download,
@@ -48,6 +49,7 @@ export function PageView() {
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [links, setLinks] = useState<PageLinks>({ outgoing: [], backlinks: [] });
+  const [linksOpen, setLinksOpen] = useState(false);
   const [linksLoading, setLinksLoading] = useState(false);
   const [iconOpen, setIconOpen] = useState(false);
   const latestBlocks = useRef<BlockRecord[]>([]);
@@ -386,66 +388,79 @@ export function PageView() {
         />
       </div>
 
-      <section className="page-links-panel">
+      <section className={cn('page-links-panel', linksOpen && 'is-open')}>
         <div className="page-links-head">
           <div>
             <span className="eyebrow"><Link2 size={12} /> KNOWLEDGE LINKS</span>
             <h2>知识链接</h2>
           </div>
-          <span className="page-links-hint">输入 <code>[[页面标题]]</code> 建立关联</span>
+          <button
+            type="button"
+            className="page-links-toggle"
+            onClick={() => setLinksOpen((value) => !value)}
+            aria-expanded={linksOpen}
+          >
+            <span>出链 {links.outgoing.length} · 回链 {links.backlinks.length}</span>
+            <ChevronDown size={15} className={cn(linksOpen && 'is-open')} />
+          </button>
         </div>
-        {linksLoading ? (
-          <div className="page-links-loading"><Loader2 size={13} className="spin" /> 正在读取链接…</div>
-        ) : (
-          <div className="page-links-grid">
-            <div className="page-links-column">
-              <h3>出链 <span>{links.outgoing.length}</span></h3>
-              {links.outgoing.length ? links.outgoing.map((link) => (
-                (link.targetPageId || link.targetModuleId) ? (
-                  <button
-                    key={link.id}
-                    type="button"
-                    className="page-link-item"
-                    onClick={() => navigate(link.targetPageId
-                      ? `/page/${link.targetPageId}`
-                      : `/module/${link.targetModuleId}`)}
-                  >
-                    <span className="page-link-icon">{link.icon}</span>
-                    <span>
-                      <strong>{link.alias || link.targetTitle}</strong>
-                      <em>{link.targetType === 'module' ? '模块 · ' : ''}{link.context}</em>
-                    </span>
-                  </button>
-                ) : (
-                  <div key={link.id} className="page-link-item is-unresolved">
-                    <span className="page-link-icon">◌</span>
-                    <span>
-                      <strong>{link.alias || link.rawTitle}</strong>
-                      <em>未创建 · {link.context}</em>
-                    </span>
-                  </div>
-                )
-              )) : <p className="page-links-empty">还没有出链。在正文里输入 [[页面标题]]。</p>}
-            </div>
-            <div className="page-links-column">
-              <h3>反向链接 <span>{links.backlinks.length}</span></h3>
-              {links.backlinks.length ? links.backlinks.map((link) => (
-                <button
-                  key={link.id}
-                  type="button"
-                  className="page-link-item"
-                  onClick={() => navigate(`/page/${link.sourcePageId}`)}
-                >
-                  <span className="page-link-icon">{link.icon}</span>
-                  <span>
-                    <strong>{link.sourceTitle}</strong>
-                    <em>{link.context}</em>
-                  </span>
-                </button>
-              )) : <p className="page-links-empty">还没有其他页面提到这里。</p>}
-            </div>
-          </div>
-        )}
+        {linksOpen ? (
+          linksLoading ? (
+            <div className="page-links-loading"><Loader2 size={13} className="spin" /> 正在读取链接…</div>
+          ) : (
+            <>
+              <p className="page-links-hint">点正文上方「关联笔记」选择页面或模块；也可以输入 <code>[[页面标题]]</code>。</p>
+              <div className="page-links-grid">
+                <div className="page-links-column">
+                  <h3>出链 <span>{links.outgoing.length}</span></h3>
+                  {links.outgoing.length ? links.outgoing.map((link) => (
+                    (link.targetPageId || link.targetModuleId) ? (
+                      <button
+                        key={link.id}
+                        type="button"
+                        className="page-link-item"
+                        onClick={() => navigate(link.targetPageId
+                          ? `/page/${link.targetPageId}`
+                          : `/module/${link.targetModuleId}`)}
+                      >
+                        <span className="page-link-icon">{link.icon}</span>
+                        <span>
+                          <strong>{link.alias || link.targetTitle}</strong>
+                          <em>{link.targetType === 'module' ? '模块 · ' : ''}{link.context}</em>
+                        </span>
+                      </button>
+                    ) : (
+                      <div key={link.id} className="page-link-item is-unresolved">
+                        <span className="page-link-icon">◌</span>
+                        <span>
+                          <strong>{link.alias || link.rawTitle}</strong>
+                          <em>未创建 · {link.context}</em>
+                        </span>
+                      </div>
+                    )
+                  )) : <p className="page-links-empty">还没有出链。在正文里插入 [[页面标题]]。</p>}
+                </div>
+                <div className="page-links-column">
+                  <h3>反向链接 <span>{links.backlinks.length}</span></h3>
+                  {links.backlinks.length ? links.backlinks.map((link) => (
+                    <button
+                      key={link.id}
+                      type="button"
+                      className="page-link-item"
+                      onClick={() => navigate(`/page/${link.sourcePageId}`)}
+                    >
+                      <span className="page-link-icon">{link.icon}</span>
+                      <span>
+                        <strong>{link.sourceTitle}</strong>
+                        <em>{link.context}</em>
+                      </span>
+                    </button>
+                  )) : <p className="page-links-empty">还没有其他页面提到这里。</p>}
+                </div>
+              </div>
+            </>
+          )
+        ) : null}
       </section>
 
       <div className="page-end">

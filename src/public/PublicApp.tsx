@@ -15,7 +15,7 @@ import {
 import { api } from '../api';
 import { applyTheme } from '../theme';
 import type { Module, PageMeta, PublicBootstrap } from '../types';
-import { cn, formatRelativeTime, getErrorMessage } from '../utils';
+import { cn, formatRelativeTime, getErrorMessage, isApplePlatform } from '../utils';
 import { BrandLockup, BrandMark } from '../components/BrandMark';
 import { ModuleIconContent } from '../components/ModuleIcon';
 import { SearchDialog } from '../components/SearchDialog';
@@ -41,6 +41,7 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
 
   async function load() {
     setLoading(true);
@@ -148,7 +149,7 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
           <button type="button" className="topbar-search" onClick={() => setSearchOpen(true)}>
             <Search size={15} />
             <span>搜索公开内容</span>
-            <kbd>⌘ K</kbd>
+            <kbd>{searchShortcut}</kbd>
           </button>
 
           <div className="topbar-right">
@@ -214,6 +215,7 @@ function PublicSidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+  const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
   const modules = useMemo(
     () => [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder),
     [data.modules],
@@ -342,7 +344,7 @@ function PublicSidebar({
         <button type="button" className="search-box" onClick={onOpenSearch}>
           <Search size={16} />
           <span>搜索公开内容…</span>
-          <kbd>⌘ K</kbd>
+          <kbd>{searchShortcut}</kbd>
         </button>
       </div>
 

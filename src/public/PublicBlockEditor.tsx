@@ -2,14 +2,27 @@ import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
 import { zh } from '@blocknote/core/locales';
 import type { PartialBlock } from '@blocknote/core';
-import type { BlockRecord, Theme } from '../types';
+import type { BlockRecord, Module, PageMeta, Theme } from '../types';
 import { devforgeSchema } from '../components/BlockEditor';
+import { wikiLinksToMarks } from '../wikilinks';
 
-export function PublicBlockEditor({ blocks, theme }: { blocks: BlockRecord[]; theme: Theme }) {
+export function PublicBlockEditor({
+  blocks,
+  pages,
+  modules,
+  theme,
+}: {
+  blocks: BlockRecord[];
+  pages: PageMeta[];
+  modules: Module[];
+  theme: Theme;
+}) {
   const editor = useCreateBlockNote({
     schema: devforgeSchema,
     dictionary: zh,
-    initialContent: blocks.length ? (blocks as unknown as PartialBlock[]) : undefined,
+    initialContent: blocks.length
+      ? (wikiLinksToMarks(blocks, pages, modules) as unknown as PartialBlock[])
+      : undefined,
   });
 
   return (
