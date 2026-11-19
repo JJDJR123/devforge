@@ -401,17 +401,19 @@ export function PageView() {
             <div className="page-links-column">
               <h3>出链 <span>{links.outgoing.length}</span></h3>
               {links.outgoing.length ? links.outgoing.map((link) => (
-                link.resolved && link.targetPageId ? (
+                (link.targetPageId || link.targetModuleId) ? (
                   <button
                     key={link.id}
                     type="button"
                     className="page-link-item"
-                    onClick={() => navigate(`/page/${link.targetPageId}`)}
+                    onClick={() => navigate(link.targetPageId
+                      ? `/page/${link.targetPageId}`
+                      : `/module/${link.targetModuleId}`)}
                   >
                     <span className="page-link-icon">{link.icon}</span>
                     <span>
                       <strong>{link.alias || link.targetTitle}</strong>
-                      <em>{link.context}</em>
+                      <em>{link.targetType === 'module' ? '模块 · ' : ''}{link.context}</em>
                     </span>
                   </button>
                 ) : (

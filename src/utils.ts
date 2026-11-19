@@ -242,9 +242,38 @@ export function downloadTextFile(filename: string, text: string) {
 }
 
 export async function copyText(text: string): Promise<boolean> {
+  // The Clipboard API only works in secure contexts (HTTPS/localhost) and can
+  // still be denied by permission policy. Try it first, then fall back to the
+  // legacy textarea copy so HTTP deployments and embedded browsers still work.
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      const permission = await navigator.permissions
+        ?.query({ name: 'clipboard-write' as PermissionName })
+        .catch(() => null);
+      if (permission?.state !== 'denied') {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fall through to the legacy path
+    }
+  }
+
+  if (typeof document === 'undefined') return false;
   try {
-    await navigator.clipboard.writeText(text);
-    return true;
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '-9999px';
+    area.style.left = '-9999px';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(area);
+    return ok;
   } catch {
     return false;
   }

@@ -188,6 +188,18 @@ function migrate() {
       CREATE INDEX IF NOT EXISTS idx_page_links_target_title ON page_links(target_title COLLATE NOCASE);
       PRAGMA user_version = 7;
     `);
+    version = 7;
+  }
+
+  if (version < 8) {
+    const linkColumns = db.prepare('PRAGMA table_info(page_links)').all().map((column) => column.name);
+    if (!linkColumns.includes('target_module_id')) {
+      db.exec('ALTER TABLE page_links ADD COLUMN target_module_id TEXT REFERENCES modules(id) ON DELETE SET NULL');
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_page_links_module ON page_links(target_module_id);
+      PRAGMA user_version = 8;
+    `);
   }
 
   const stamp = now();
@@ -622,16 +634,29 @@ export function rebuildPageLinks(pageId) {
     byTitle.set(key, list);
   }
 
+  const modules = db.prepare('SELECT id, title, icon FROM modules').all();
+  const modulesByTitle = new Map();
+  for (const module of modules) {
+    modulesByTitle.set(module.title.trim().toLowerCase(), module);
+  }
+
   WIKI_LINK_RE.lastIndex = 0;
   let match;
   while ((match = WIKI_LINK_RE.exec(text)) !== null) {
-    const targetTitle = match[1].trim();
+    const rawTarget = match[1].trim();
     const alias = (match[2] || '').trim() || null;
+    const modulePrefix = rawTarget.match(/^模块[:：]\s*(.+)$/);
+    const isModule = Boolean(modulePrefix);
+    const targetTitle = (modulePrefix ? modulePrefix[1] : rawTarget).trim();
     if (!targetTitle) continue;
-    const candidates = byTitle.get(targetTitle.toLowerCase()) || [];
-    const target = candidates.find((page) => page.module_id === source.module_id) || candidates[0] || null;
+
+    const targetModule = isModule ? modulesByTitle.get(targetTitle.toLowerCase()) || null : null;
+    const candidates = isModule ? [] : (byTitle.get(targetTitle.toLowerCase()) || []);
+    const target = isModule ? null : (candidates.find((page) => page.module_id === source.module_id) || candidates[0] || null);
     if (target?.id === pageId) continue;
-    const key = target ? target.id : `title:${targetTitle.toLowerCase()}`;
+    const key = isModule
+      ? (targetModule ? `module:${targetModule.id}` : `module-title:${targetTitle.toLowerCase()}`)
+      : (target ? target.id : `title:${targetTitle.toLowerCase()}`);
     if (seen.has(key)) continue;
     seen.add(key);
     const start = Math.max(0, match.index - 70);
@@ -641,6 +666,7 @@ export function rebuildPageLinks(pageId) {
       id: uid(),
       sourcePageId: pageId,
       targetPageId: target?.id || null,
+      targetModuleId: targetModule?.id || null,
       targetTitle,
       alias,
       context,
@@ -649,11 +675,14 @@ export function rebuildPageLinks(pageId) {
   }
 
   const insert = db.prepare(`
-    INSERT INTO page_links (id, source_page_id, target_page_id, target_title, alias, context, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO page_links (id, source_page_id, target_page_id, target_module_id, target_title, alias, context, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const link of links) {
-    insert.run(link.id, link.sourcePageId, link.targetPageId, link.targetTitle, link.alias, link.context, link.createdAt);
+    insert.run(
+      link.id, link.sourcePageId, link.targetPageId, link.targetModuleId,
+      link.targetTitle, link.alias, link.context, link.createdAt,
+    );
   }
 }
 
@@ -668,19 +697,22 @@ export function getPageLinks(pageId) {
 
   const outgoing = db.prepare(`
     SELECT l.*, p.title AS target_page_title, p.icon AS target_page_icon,
-           p.module_id AS target_module_id
+           m.title AS target_module_title, m.icon AS target_module_icon
     FROM page_links l
     LEFT JOIN pages p ON p.id = l.target_page_id
+    LEFT JOIN modules m ON m.id = l.target_module_id
     WHERE l.source_page_id = ?
     ORDER BY l.created_at ASC
   `).all(pageId).map((row) => ({
     id: row.id,
     targetPageId: row.target_page_id || null,
-    targetTitle: row.target_page_title || row.target_title,
+    targetModuleId: row.target_module_id || null,
+    targetType: row.target_page_id ? 'page' : row.target_module_id ? 'module' : 'unresolved',
+    targetTitle: row.target_page_title || row.target_module_title || row.target_title,
     rawTitle: row.target_title,
     alias: row.alias || null,
-    icon: row.target_page_icon || '📄',
-    resolved: Boolean(row.target_page_id),
+    icon: row.target_page_icon || row.target_module_icon || (row.target_module_id ? '📦' : '📄'),
+    resolved: Boolean(row.target_page_id || row.target_module_id),
     context: row.context,
   }));
 

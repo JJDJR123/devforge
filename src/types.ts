@@ -101,6 +101,8 @@ export type Page = PageMeta & {
 export type PageLink = {
   id: string;
   targetPageId: string | null;
+  targetModuleId: string | null;
+  targetType: 'page' | 'module' | 'unresolved';
   targetTitle: string;
   rawTitle: string;
   alias: string | null;

@@ -8,12 +8,14 @@ import { BlockNoteView } from '@blocknote/mantine';
 import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems } from '@blocknote/core';
 import { zh } from '@blocknote/core/locales';
 import type { PartialBlock } from '@blocknote/core';
+import { Link2 } from 'lucide-react';
 import { api, saveContentKeepalive } from '../api';
 import type { BlockRecord, Page } from '../types';
 import { extractPlainText, countTodos, getErrorMessage } from '../utils';
 import { useToast } from './Toast';
 import { useApp } from '../state/AppContext';
 import { EmbedBlock } from './EmbedBlock';
+import { LinkPicker } from './LinkPicker';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -38,8 +40,9 @@ export function BlockEditor({
   onDocumentChange?: (blocks: BlockRecord[]) => void;
 }) {
   const { toast } = useToast();
-  const { theme } = useApp();
+  const { theme, data } = useApp();
   const [status, setStatus] = useState<SaveStatus>('saved');
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const latest = useRef<any[]>(page.blocks);
   const dirty = useRef(false);
   const inFlight = useRef(false);
@@ -148,8 +151,50 @@ export function BlockEditor({
     };
   }
 
+  function insertWikiLinkItem() {
+    return {
+      title: '关联笔记',
+      subtext: '搜索页面或模块，插入双链',
+      aliases: ['link', 'wiki', '关联', '双链', '页面', '模块', '链接'],
+      group: '关联',
+      onItemClick: () => {
+        setLinkPickerOpen(true);
+      },
+    };
+  }
+
+  function insertWikiLink(kind: 'page' | 'module', title: string) {
+    const text = kind === 'module' ? `[[模块:${title}]]` : `[[${title}]]`;
+    setLinkPickerOpen(false);
+    try {
+      editor.insertInlineContent([{ type: 'text', text, styles: {} }]);
+      editor.focus();
+    } catch {
+      try {
+        const fallbackBlock = {
+          type: 'paragraph',
+          content: [{ type: 'text', text, styles: {} }],
+        } as never;
+        if (editor.document.length) {
+          editor.insertBlocks([fallbackBlock], editor.document[editor.document.length - 1], 'after');
+        } else {
+          editor.replaceBlocks(editor.document, [fallbackBlock]);
+        }
+        editor.focus();
+      } catch {
+        toast('先把光标放到正文里，再点「关联笔记」。', 'error');
+      }
+    }
+  }
+
   return (
     <div className="editor-wrap">
+      <div className="editor-link-bar">
+        <button type="button" className="editor-link-launch" onClick={() => setLinkPickerOpen(true)}>
+          <Link2 size={14} /> 关联笔记
+        </button>
+        <span>搜索页面或模块，选中后插入到光标</span>
+      </div>
       <BlockNoteView
         editor={editor}
         theme={theme.preset === 'paper' ? 'light' : 'dark'}
@@ -175,11 +220,21 @@ export function BlockEditor({
             [
               ...getDefaultReactSlashMenuItems(editor),
               insertEmbedItem(),
+              insertWikiLinkItem(),
             ],
             query,
           )}
         />
       </BlockNoteView>
+      <LinkPicker
+        open={linkPickerOpen}
+        pages={data?.pages || []}
+        modules={data?.modules || []}
+        currentPageId={page.id}
+        currentModuleId={page.moduleId}
+        onClose={() => setLinkPickerOpen(false)}
+        onSelect={insertWikiLink}
+      />
     </div>
   );
 }
