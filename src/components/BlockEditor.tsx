@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   SuggestionMenuController,
   getDefaultReactSlashMenuItems,
@@ -17,6 +16,7 @@ import { useToast } from './Toast';
 import { useApp } from '../state/AppContext';
 import { EmbedBlock } from './EmbedBlock';
 import { LinkPicker } from './LinkPicker';
+import { WikiPreview } from './WikiPreview';
 import { wikiLinksToMarks } from '../wikilinks';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
@@ -43,9 +43,9 @@ export function BlockEditor({
 }) {
   const { toast } = useToast();
   const { theme, data } = useApp();
-  const navigate = useNavigate();
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [previewHref, setPreviewHref] = useState<string | null>(null);
   const latest = useRef<any[]>(page.blocks);
   const dirty = useRef(false);
   const inFlight = useRef(false);
@@ -206,7 +206,7 @@ export function BlockEditor({
         if (!anchor || !anchor.closest('.devforge-editor')) return;
         event.preventDefault();
         event.stopPropagation();
-        navigate(anchor.getAttribute('href') || '/');
+        setPreviewHref(anchor.getAttribute('href') || null);
       }}
     >
       <div className="editor-link-bar">
@@ -254,6 +254,14 @@ export function BlockEditor({
         currentModuleId={page.moduleId}
         onClose={() => setLinkPickerOpen(false)}
         onSelect={insertWikiLink}
+      />
+      <WikiPreview
+        href={previewHref}
+        mode="admin"
+        pages={data?.pages || []}
+        modules={data?.modules || []}
+        theme={theme}
+        onClose={() => setPreviewHref(null)}
       />
     </div>
   );

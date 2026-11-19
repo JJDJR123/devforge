@@ -392,7 +392,7 @@ export function Sidebar({
             <div className="update-list">
               <div className="update-item">
                 <strong>知识链接升级</strong>
-                <p>正文里的页面/模块链接会显示为可点击的超链接；新链接改用「关联笔记」搜索选择，不再手打标题。</p>
+                <p>正文里的页面/模块链接会显示为当前主题色；点击弹出快速预览窗口，不离开当前页面。</p>
               </div>
               <div className="update-item">
                 <strong>知识链接抽屉</strong>

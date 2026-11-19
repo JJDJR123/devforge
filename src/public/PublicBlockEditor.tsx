@@ -11,11 +11,13 @@ export function PublicBlockEditor({
   pages,
   modules,
   theme,
+  onLinkClick,
 }: {
   blocks: BlockRecord[];
   pages: PageMeta[];
   modules: Module[];
   theme: Theme;
+  onLinkClick?: (href: string) => void;
 }) {
   const editor = useCreateBlockNote({
     schema: devforgeSchema,
@@ -26,7 +28,18 @@ export function PublicBlockEditor({
   });
 
   return (
-    <div className="public-editor-wrap">
+    <div
+      className="public-editor-wrap"
+      onClickCapture={(event) => {
+        if (!onLinkClick) return;
+        const target = event.target as HTMLElement;
+        const anchor = target.closest<HTMLAnchorElement>('a[href^="/page/"], a[href^="/module/"]');
+        if (!anchor || !anchor.closest('.public-editor')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onLinkClick(anchor.getAttribute('href') || '');
+      }}
+    >
       <BlockNoteView
         editor={editor}
         editable={false}

@@ -22,6 +22,7 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { DropdownMenu } from '../components/DropdownMenu';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { BlockEditor, type SaveStatus } from '../components/BlockEditor';
+import { WikiPreview } from '../components/WikiPreview';
 import type { BlockRecord, Breadcrumb, Page, PageLinks } from '../types';
 import {
   blocksToMarkdown,
@@ -52,6 +53,7 @@ export function PageView() {
   const [linksOpen, setLinksOpen] = useState(false);
   const [linksLoading, setLinksLoading] = useState(false);
   const [creatingLinkId, setCreatingLinkId] = useState('');
+  const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [iconOpen, setIconOpen] = useState(false);
   const latestBlocks = useRef<BlockRecord[]>([]);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -441,7 +443,7 @@ export function PageView() {
                         key={link.id}
                         type="button"
                         className="page-link-item"
-                        onClick={() => navigate(link.targetPageId
+                        onClick={() => setPreviewHref(link.targetPageId
                           ? `/page/${link.targetPageId}`
                           : `/module/${link.targetModuleId}`)}
                       >
@@ -480,7 +482,7 @@ export function PageView() {
                       key={link.id}
                       type="button"
                       className="page-link-item"
-                      onClick={() => navigate(`/page/${link.sourcePageId}`)}
+                      onClick={() => setPreviewHref(`/page/${link.sourcePageId}`)}
                     >
                       <span className="page-link-icon">{link.icon}</span>
                       <span>
@@ -507,6 +509,17 @@ export function PageView() {
           复制链接 <ArrowUpRight size={13} />
         </button>
       </div>
+
+      {data ? (
+        <WikiPreview
+          href={previewHref}
+          mode="admin"
+          pages={data.pages || []}
+          modules={data.modules || []}
+          theme={data.theme}
+          onClose={() => setPreviewHref(null)}
+        />
+      ) : null}
     </article>
   );
 }

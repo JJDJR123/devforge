@@ -5,6 +5,7 @@ import { api } from '../api';
 import type { Breadcrumb, Page, PageLinks, PublicBootstrap } from '../types';
 import { cn, formatNumber, formatRelativeTime, getErrorMessage } from '../utils';
 import { PublicBlockEditor } from './PublicBlockEditor';
+import { WikiPreview } from '../components/WikiPreview';
 
 export function PublicPage({ data }: { data: PublicBootstrap }) {
   const { pageId = '' } = useParams();
@@ -13,6 +14,7 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
   const [breadcrumb, setBreadcrumb] = useState<Breadcrumb | null>(null);
   const [links, setLinks] = useState<PageLinks>({ outgoing: [], backlinks: [] });
   const [linksOpen, setLinksOpen] = useState(false);
+  const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -129,6 +131,7 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
             pages={data.pages}
             modules={data.modules}
             theme={data.theme}
+            onLinkClick={setPreviewHref}
           />
         ) : (
           <div className="public-empty-page">
@@ -164,7 +167,7 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
                     key={link.id}
                     type="button"
                     className="page-link-item"
-                    onClick={() => navigate(link.targetPageId
+                    onClick={() => setPreviewHref(link.targetPageId
                       ? `/page/${link.targetPageId}`
                       : `/module/${link.targetModuleId}`)}
                   >
@@ -184,7 +187,7 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
                   key={link.id}
                   type="button"
                   className="page-link-item"
-                  onClick={() => navigate(`/page/${link.sourcePageId}`)}
+                  onClick={() => setPreviewHref(`/page/${link.sourcePageId}`)}
                 >
                   <span className="page-link-icon">{link.icon}</span>
                   <span>
@@ -207,6 +210,15 @@ export function PublicPage({ data }: { data: PublicBootstrap }) {
         <span>最后更新 {formatRelativeTime(page.updatedAt)}</span>
         <span><Eye size={12} /> 公开只读页面</span>
       </div>
+
+      <WikiPreview
+        href={previewHref}
+        mode="public"
+        pages={data.pages}
+        modules={data.modules}
+        theme={data.theme}
+        onClose={() => setPreviewHref(null)}
+      />
     </article>
   );
 }
