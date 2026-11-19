@@ -208,6 +208,15 @@ export function BlockEditor({
         event.stopPropagation();
         setPreviewHref(anchor.getAttribute('href') || null);
       }}
+      onDragStart={(event) => {
+        // Edge's "Super Drag Drop" opens a search tab when selected text is
+        // dragged. BlockNote's block handle must keep working, but dragging a
+        // text selection inside the editor should not leave the page.
+        const target = event.target as HTMLElement;
+        if (target.closest('.bn-side-menu, .bn-drag-handle, [data-test="drag-handle"]')) return;
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) event.preventDefault();
+      }}
     >
       <div className="editor-link-bar">
         <button type="button" className="editor-link-launch" onClick={() => setLinkPickerOpen(true)}>

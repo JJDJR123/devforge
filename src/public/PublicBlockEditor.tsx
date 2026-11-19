@@ -39,6 +39,12 @@ export function PublicBlockEditor({
         event.stopPropagation();
         onLinkClick(anchor.getAttribute('href') || '');
       }}
+      onDragStart={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest('.bn-side-menu, .bn-drag-handle, [data-test="drag-handle"]')) return;
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) event.preventDefault();
+      }}
     >
       <BlockNoteView
         editor={editor}
