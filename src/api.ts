@@ -9,6 +9,7 @@ import type {
   Breadcrumb,
   Module,
   Page,
+  PageLinks,
   PageMeta,
   PublicBootstrap,
   SearchResult,
@@ -132,6 +133,9 @@ export const api = {
 
   getPage: (id: string) =>
     request<{ page: Page; breadcrumb: Breadcrumb }>(`/api/pages/${encodeURIComponent(id)}`),
+
+  pageLinks: (id: string) =>
+    request<PageLinks>(`/api/pages/${encodeURIComponent(id)}/links`),
 
   createPage: (input: { moduleId: string; parentId?: string | null; title?: string; icon?: string }) =>
     request<{ page: Page }>('/api/pages', { method: 'POST', body: input }),

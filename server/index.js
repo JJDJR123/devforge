@@ -57,6 +57,7 @@ import {
   getModule,
   getPage,
   getPageBreadcrumb,
+  getPageLinks,
   getPublicBootstrap,
   getPublicPage,
   getPublicPageBreadcrumb,
@@ -443,6 +444,11 @@ app.get('/api/pages/:id', { preHandler: requireAuth }, async (req, reply) => {
   const page = getPage(req.params.id);
   if (!page) return fail(reply, 404, 'NOT_FOUND', '页面不存在。');
   return { page, breadcrumb: getPageBreadcrumb(page.id) };
+});
+
+app.get('/api/pages/:id/links', { preHandler: requireAuth }, async (req, reply) => {
+  if (!getPage(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '页面不存在。');
+  return getPageLinks(req.params.id);
 });
 
 app.post('/api/pages', { preHandler: requireAuth }, async (req, reply) => {

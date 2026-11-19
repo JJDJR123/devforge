@@ -98,6 +98,31 @@ export type Page = PageMeta & {
   blocks: BlockRecord[];
 };
 
+export type PageLink = {
+  id: string;
+  targetPageId: string | null;
+  targetTitle: string;
+  rawTitle: string;
+  alias: string | null;
+  icon: string;
+  resolved: boolean;
+  context: string;
+};
+
+export type PageBacklink = {
+  id: string;
+  sourcePageId: string;
+  sourceTitle: string;
+  icon: string;
+  alias: string | null;
+  context: string;
+};
+
+export type PageLinks = {
+  outgoing: PageLink[];
+  backlinks: PageBacklink[];
+};
+
 export type Breadcrumb = {
   module: { id: string; title: string; icon: string; iconUrl?: string } | null;
   moduleChain?: { id: string; title: string; icon: string; iconUrl?: string }[];

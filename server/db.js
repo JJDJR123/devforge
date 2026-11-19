@@ -169,6 +169,25 @@ function migrate() {
       CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated ON ai_conversations(updated_at DESC);
       PRAGMA user_version = 6;
     `);
+    version = 6;
+  }
+
+  if (version < 7) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS page_links (
+        id TEXT PRIMARY KEY,
+        source_page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+        target_page_id TEXT REFERENCES pages(id) ON DELETE SET NULL,
+        target_title TEXT NOT NULL,
+        alias TEXT,
+        context TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_page_links_source ON page_links(source_page_id);
+      CREATE INDEX IF NOT EXISTS idx_page_links_target ON page_links(target_page_id);
+      CREATE INDEX IF NOT EXISTS idx_page_links_target_title ON page_links(target_title COLLATE NOCASE);
+      PRAGMA user_version = 7;
+    `);
   }
 
   const stamp = now();
@@ -537,6 +556,7 @@ export function createPage({ moduleId, parentId = null, title = '未命名页面
     id, targetModule, parentId, title, icon, order,
     JSON.stringify(safeBlocks), extractSearchText(safeBlocks), todo.total, todo.done, stamp, stamp,
   );
+  rebuildAllPageLinks();
   return getPage(id);
 }
 
@@ -549,6 +569,7 @@ export function updatePageMeta(id, patch) {
   fields.push('updated_at = ?');
   values.push(now(), id);
   db.prepare(`UPDATE pages SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  if (typeof patch.title === 'string') rebuildAllPageLinks();
   return getPage(id);
 }
 
@@ -563,11 +584,124 @@ export function updatePageContent(id, blocks, searchText) {
     SET blocks = ?, search_text = ?, todo_total = ?, todo_done = ?, updated_at = ?
     WHERE id = ?
   `).run(JSON.stringify(safeBlocks), text, todo.total, todo.done, now(), id);
+  rebuildPageLinks(id);
   return db.prepare('SELECT updated_at, todo_total, todo_done FROM pages WHERE id = ?').get(id);
 }
 
 export function deletePage(id) {
-  return db.prepare('DELETE FROM pages WHERE id = ?').run(id).changes > 0;
+  const changed = db.prepare('DELETE FROM pages WHERE id = ?').run(id).changes > 0;
+  if (changed) rebuildAllPageLinks();
+  return changed;
+}
+
+/* ------------------------------------------------------------------ */
+/* page links ([[wiki links]])                                         */
+/* ------------------------------------------------------------------ */
+
+const WIKI_LINK_RE = /\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]/g;
+
+export function rebuildPageLinks(pageId) {
+  const source = db.prepare('SELECT id, module_id, title, blocks FROM pages WHERE id = ?').get(pageId);
+  if (!source) return;
+  let blocks = [];
+  try { blocks = JSON.parse(source.blocks); } catch { blocks = []; }
+  const text = extractSearchText(blocks);
+  const links = [];
+  const seen = new Set();
+
+  db.prepare('DELETE FROM page_links WHERE source_page_id = ?').run(pageId);
+
+  if (!text) return;
+
+  const pages = db.prepare('SELECT id, module_id, title, icon FROM pages').all();
+  const byTitle = new Map();
+  for (const page of pages) {
+    const key = page.title.trim().toLowerCase();
+    const list = byTitle.get(key) || [];
+    list.push(page);
+    byTitle.set(key, list);
+  }
+
+  WIKI_LINK_RE.lastIndex = 0;
+  let match;
+  while ((match = WIKI_LINK_RE.exec(text)) !== null) {
+    const targetTitle = match[1].trim();
+    const alias = (match[2] || '').trim() || null;
+    if (!targetTitle) continue;
+    const candidates = byTitle.get(targetTitle.toLowerCase()) || [];
+    const target = candidates.find((page) => page.module_id === source.module_id) || candidates[0] || null;
+    if (target?.id === pageId) continue;
+    const key = target ? target.id : `title:${targetTitle.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const start = Math.max(0, match.index - 70);
+    const end = Math.min(text.length, match.index + match[0].length + 100);
+    const context = text.slice(start, end).replace(/\s+/g, ' ').trim();
+    links.push({
+      id: uid(),
+      sourcePageId: pageId,
+      targetPageId: target?.id || null,
+      targetTitle,
+      alias,
+      context,
+      createdAt: now(),
+    });
+  }
+
+  const insert = db.prepare(`
+    INSERT INTO page_links (id, source_page_id, target_page_id, target_title, alias, context, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const link of links) {
+    insert.run(link.id, link.sourcePageId, link.targetPageId, link.targetTitle, link.alias, link.context, link.createdAt);
+  }
+}
+
+export function rebuildAllPageLinks() {
+  const ids = db.prepare('SELECT id FROM pages').all().map((row) => row.id);
+  for (const id of ids) rebuildPageLinks(id);
+}
+
+export function getPageLinks(pageId) {
+  const page = getPage(pageId);
+  if (!page) return { outgoing: [], backlinks: [] };
+
+  const outgoing = db.prepare(`
+    SELECT l.*, p.title AS target_page_title, p.icon AS target_page_icon,
+           p.module_id AS target_module_id
+    FROM page_links l
+    LEFT JOIN pages p ON p.id = l.target_page_id
+    WHERE l.source_page_id = ?
+    ORDER BY l.created_at ASC
+  `).all(pageId).map((row) => ({
+    id: row.id,
+    targetPageId: row.target_page_id || null,
+    targetTitle: row.target_page_title || row.target_title,
+    rawTitle: row.target_title,
+    alias: row.alias || null,
+    icon: row.target_page_icon || '📄',
+    resolved: Boolean(row.target_page_id),
+    context: row.context,
+  }));
+
+  const backlinks = db.prepare(`
+    SELECT l.*, p.title AS source_page_title, p.icon AS source_page_icon,
+           p.module_id AS source_module_id
+    FROM page_links l
+    JOIN pages p ON p.id = l.source_page_id
+    WHERE l.target_page_id = ?
+       OR (l.target_page_id IS NULL AND lower(l.target_title) = lower(?))
+    ORDER BY l.created_at ASC
+  `).all(pageId, page.title).map((row) => ({
+    id: row.id,
+    sourcePageId: row.source_page_id,
+    sourceTitle: row.source_page_title,
+    icon: row.source_page_icon || '📄',
+    alias: row.alias || null,
+    context: row.context,
+  }));
+
+  return { outgoing, backlinks };
 }
 
 export function reorderPages(ids, moduleId, parentId = null) {

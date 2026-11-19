@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FilePlus2,
+  Link2,
   Loader2,
   MoreHorizontal,
   Trash2,
@@ -20,7 +21,7 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { DropdownMenu } from '../components/DropdownMenu';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { BlockEditor, type SaveStatus } from '../components/BlockEditor';
-import type { BlockRecord, Breadcrumb, Page } from '../types';
+import type { BlockRecord, Breadcrumb, Page, PageLinks } from '../types';
 import {
   blocksToMarkdown,
   cn,
@@ -46,6 +47,8 @@ export function PageView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [links, setLinks] = useState<PageLinks>({ outgoing: [], backlinks: [] });
+  const [linksLoading, setLinksLoading] = useState(false);
   const [iconOpen, setIconOpen] = useState(false);
   const latestBlocks = useRef<BlockRecord[]>([]);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,6 +84,23 @@ export function PageView() {
       }
     };
   }, [pageId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!pageId) return;
+    setLinksLoading(true);
+    api.pageLinks(pageId)
+      .then((result) => {
+        if (!cancelled) setLinks(result);
+      })
+      .catch(() => {
+        if (!cancelled) setLinks({ outgoing: [], backlinks: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setLinksLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [pageId, page?.updatedAt]);
 
   useEffect(() => {
     const element = titleRef.current;
@@ -365,6 +385,66 @@ export function PageView() {
           }}
         />
       </div>
+
+      <section className="page-links-panel">
+        <div className="page-links-head">
+          <div>
+            <span className="eyebrow"><Link2 size={12} /> KNOWLEDGE LINKS</span>
+            <h2>知识链接</h2>
+          </div>
+          <span className="page-links-hint">输入 <code>[[页面标题]]</code> 建立关联</span>
+        </div>
+        {linksLoading ? (
+          <div className="page-links-loading"><Loader2 size={13} className="spin" /> 正在读取链接…</div>
+        ) : (
+          <div className="page-links-grid">
+            <div className="page-links-column">
+              <h3>出链 <span>{links.outgoing.length}</span></h3>
+              {links.outgoing.length ? links.outgoing.map((link) => (
+                link.resolved && link.targetPageId ? (
+                  <button
+                    key={link.id}
+                    type="button"
+                    className="page-link-item"
+                    onClick={() => navigate(`/page/${link.targetPageId}`)}
+                  >
+                    <span className="page-link-icon">{link.icon}</span>
+                    <span>
+                      <strong>{link.alias || link.targetTitle}</strong>
+                      <em>{link.context}</em>
+                    </span>
+                  </button>
+                ) : (
+                  <div key={link.id} className="page-link-item is-unresolved">
+                    <span className="page-link-icon">◌</span>
+                    <span>
+                      <strong>{link.alias || link.rawTitle}</strong>
+                      <em>未创建 · {link.context}</em>
+                    </span>
+                  </div>
+                )
+              )) : <p className="page-links-empty">还没有出链。在正文里输入 [[页面标题]]。</p>}
+            </div>
+            <div className="page-links-column">
+              <h3>反向链接 <span>{links.backlinks.length}</span></h3>
+              {links.backlinks.length ? links.backlinks.map((link) => (
+                <button
+                  key={link.id}
+                  type="button"
+                  className="page-link-item"
+                  onClick={() => navigate(`/page/${link.sourcePageId}`)}
+                >
+                  <span className="page-link-icon">{link.icon}</span>
+                  <span>
+                    <strong>{link.sourceTitle}</strong>
+                    <em>{link.context}</em>
+                  </span>
+                </button>
+              )) : <p className="page-links-empty">还没有其他页面提到这里。</p>}
+            </div>
+          </div>
+        )}
+      </section>
 
       <div className="page-end">
         <span className="page-end-line" />
