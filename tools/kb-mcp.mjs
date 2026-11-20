@@ -7,15 +7,35 @@
  *   kb_propose —— 提交草稿，等待管理员审核
  *
  * 环境变量：
- *   DEVFORGE_KB_URL   默认 http://127.0.0.1:3000
- *   DEVFORGE_KB_TOKEN 在平台「知识库 → 接口 token」里生成
+ *   DEVFORGE_KB_URL        默认 http://127.0.0.1:3000
+ *   DEVFORGE_KB_TOKEN      在平台「知识库 → 接口 token」里生成
+ *   DEVFORGE_KB_TOKEN_FILE 可选，默认 ~/.devforge-kb-token
+ *
+ * 如果 Codex 没有把 token 环境变量传进来，就把 token 写进
+ * ~/.devforge-kb-token（或 DEVFORGE_KB_TOKEN_FILE 指定的文件），本进程会读它。
  *
  * 这个进程不读取 API Key，不直接访问 SQLite，只调用平台 HTTP API。
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import readline from 'node:readline';
 
+const TOKEN_FILE = process.env.DEVFORGE_KB_TOKEN_FILE
+  || path.join(os.homedir(), '.devforge-kb-token');
+
+function readToken() {
+  const fromEnv = String(process.env.DEVFORGE_KB_TOKEN || '').trim();
+  if (fromEnv) return fromEnv;
+  try {
+    return fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
 const BASE = (process.env.DEVFORGE_KB_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '');
-const TOKEN = String(process.env.DEVFORGE_KB_TOKEN || '').trim();
+let TOKEN = readToken();
 const PROTOCOL = '2024-11-05';
 const SERVER_INFO = { name: 'devforge-kb', version: '1.0.0' };
 
@@ -82,7 +102,9 @@ function rpcError(id, code, message) {
 }
 
 async function api(path, options = {}) {
-  if (!TOKEN) throw new Error('没有设置 DEVFORGE_KB_TOKEN。');
+  if (!TOKEN) {
+    throw new Error(`没有设置 DEVFORGE_KB_TOKEN。可以把 token 写进 ${TOKEN_FILE}，或配置 MCP 的环境变量。`);
+  }
   const response = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {

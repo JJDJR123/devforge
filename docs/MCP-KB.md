@@ -127,3 +127,20 @@ token 不对，或者平台重启后 token 被轮换。回平台重新复制。
 ### 搜不到刚提交的配方
 
 它是草稿，必须在「知识库 → 待审」点「通过」。
+
+---
+
+## 6. 如果 Codex 没把 token 传进来
+
+有些 Codex 桌面版/宿主不会把 `env` 传给 MCP 子进程。可以在本机放一个 token 文件，MCP 会自动读取：
+
+```powershell
+Read-Host "粘贴知识库 token" | Set-Content "$env:USERPROFILE\.devforge-kb-token" -NoNewline
+```
+
+然后重启 Codex。MCP 的读取顺序是：
+
+1. `DEVFORGE_KB_TOKEN` 环境变量
+2. `~/.devforge-kb-token` 文件
+
+token 文件是明文，只放在你自己的 Windows 用户目录，不要提交 Git。
