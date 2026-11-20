@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowUp,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -300,6 +301,14 @@ export function Sidebar({
             <Megaphone size={17} />
             <span>更新公告</span>
             {updateUnread ? <em>NEW</em> : null}
+          </button>
+          <button
+            type="button"
+            className={cn('nav-item', location.pathname.startsWith('/kb') && 'is-active')}
+            onClick={() => go('/kb')}
+          >
+            <BookOpen size={17} />
+            <span>知识库</span>
           </button>
         </nav>
 

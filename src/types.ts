@@ -14,6 +14,7 @@ export type AISource = {
   id: string;
   title: string;
   icon: string;
+  type?: 'page' | 'kb';
 };
 
 export type AIConversation = {
@@ -209,4 +210,47 @@ export type UploadResult = {
 export type ApiErrorBody = {
   error?: string;
   message?: string;
+};
+
+export type KbKind = 'recipe' | 'rule' | 'fact' | 'reference';
+export type KbStatus = 'draft' | 'published' | 'archived';
+
+export type KbDoc = {
+  id: string;
+  title: string;
+  kind: KbKind;
+  status: KbStatus;
+  summary: string;
+  bodyMd: string;
+  tool: string;
+  prompt: string;
+  tags: string[];
+  source: string;
+  sourceRef: string;
+  version: number;
+  supersedesId: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KbStats = {
+  draft: number;
+  published: number;
+  archived: number;
+  total: number;
+  byKind: { kind: string; n: number }[];
+};
+
+export type KbSearchHit = {
+  id: string;
+  title: string;
+  kind: KbKind;
+  summary: string;
+  body: string;
+  tool: string;
+  prompt: string;
+  tags: string[];
+  verifiedAt: string | null;
+  updatedAt: string;
 };

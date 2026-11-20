@@ -241,3 +241,42 @@ export function saveMetaKeepalive(id: string, title: string, icon?: string) {
     // Best effort on page unload.
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* AI 知识库                                                            */
+/* ------------------------------------------------------------------ */
+
+export type KbListParams = { status?: string; kind?: string; q?: string; limit?: number };
+
+export const kbApi = {
+  list: (params: KbListParams = {}) => {
+    const search = new URLSearchParams();
+    if (params.status) search.set('status', params.status);
+    if (params.kind) search.set('kind', params.kind);
+    if (params.q) search.set('q', params.q);
+    if (params.limit) search.set('limit', String(params.limit));
+    const qs = search.toString();
+    return request<{ docs: import('./types').KbDoc[]; stats: import('./types').KbStats; kinds: string[]; statuses: string[] }>(
+      `/api/kb${qs ? `?${qs}` : ''}`,
+    );
+  },
+  get: (id: string) => request<{ doc: import('./types').KbDoc }>(`/api/kb/${encodeURIComponent(id)}`),
+  create: (input: Partial<import('./types').KbDoc> & { title: string }) =>
+    request<{ doc: import('./types').KbDoc }>('/api/kb', { method: 'POST', body: input }),
+  update: (id: string, input: Partial<import('./types').KbDoc>) =>
+    request<{ doc: import('./types').KbDoc }>(`/api/kb/${encodeURIComponent(id)}`, { method: 'PATCH', body: input }),
+  setStatus: (id: string, status: string) =>
+    request<{ doc: import('./types').KbDoc }>(`/api/kb/${encodeURIComponent(id)}/status`, {
+      method: 'POST',
+      body: { status },
+    }),
+  remove: (id: string) =>
+    request<{ ok: true }>(`/api/kb/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  stats: () => request<{ stats: import('./types').KbStats }>('/api/kb/stats'),
+  token: () => request<{ token: string }>('/api/kb/token'),
+  rotateToken: () => request<{ token: string }>('/api/kb/token', { method: 'POST', body: {} }),
+  search: (q: string, kind = '', limit = 8) =>
+    request<{ query: string; results: import('./types').KbSearchHit[] }>(
+      `/api/kb/search?q=${encodeURIComponent(q)}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}&limit=${limit}`,
+    ),
+};

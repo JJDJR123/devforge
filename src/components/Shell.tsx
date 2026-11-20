@@ -9,6 +9,7 @@ import { Dashboard } from '../views/Dashboard';
 import { ModuleView } from '../views/ModuleView';
 import { PageView } from '../views/PageView';
 import { SettingsView } from '../views/SettingsView';
+import { KnowledgeView } from '../views/KnowledgeView';
 import { useApp } from '../state/AppContext';
 import { cn, isApplePlatform } from '../utils';
 
@@ -105,6 +106,7 @@ export function Shell() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/module/:moduleId" element={<ModuleView />} />
             <Route path="/page/:pageId" element={<PageView />} />
+            <Route path="/kb" element={<KnowledgeView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

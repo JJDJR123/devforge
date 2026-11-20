@@ -264,7 +264,7 @@ export function AIAssistant() {
               <h3>还差一步</h3>
               <p>服务器还没有配置 DeepSeek API Key。配置后，这个面板就可以用了。</p>
               <pre>AI_API_KEY=你的key
-AI_MODEL=deepseek-chat</pre>
+AI_MODEL=deepseek-flash</pre>
               <p className="ai-hint">在服务器 <code>/opt/devforge/.env</code> 里填写，然后执行：</p>
               <pre>sudo systemctl restart devforge</pre>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => { void loadStartup(); }}>
@@ -290,12 +290,15 @@ AI_MODEL=deepseek-chat</pre>
                     <div className="ai-message-text">{message.text}</div>
                     {message.sources?.length ? (
                       <div className="ai-sources">
-                        <span>参考页面</span>
-                        {message.sources.slice(0, 6).map((source) => (
+                        <span>参考来源</span>
+                        {message.sources.slice(0, 8).map((source) => (
                           <button
-                            key={source.id}
+                            key={`${source.type || 'page'}-${source.id}`}
                             type="button"
-                            onClick={() => { navigate(`/page/${source.id}`); setOpen(false); }}
+                            onClick={() => {
+                              navigate(source.type === 'kb' ? `/kb?doc=${source.id}` : `/page/${source.id}`);
+                              setOpen(false);
+                            }}
                           >
                             {source.icon} {source.title}
                           </button>

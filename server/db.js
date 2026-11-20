@@ -202,6 +202,33 @@ function migrate() {
     `);
   }
 
+  if (version < 9) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS kb_docs (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'recipe',
+        status TEXT NOT NULL DEFAULT 'draft',
+        summary TEXT NOT NULL DEFAULT '',
+        body_md TEXT NOT NULL DEFAULT '',
+        tool TEXT NOT NULL DEFAULT '',
+        prompt TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
+        search_text TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        source_ref TEXT NOT NULL DEFAULT '',
+        version INTEGER NOT NULL DEFAULT 1,
+        supersedes_id TEXT,
+        verified_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kb_status ON kb_docs(status, kind, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_kb_updated ON kb_docs(updated_at);
+      PRAGMA user_version = 9;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -1084,6 +1111,7 @@ export function exportAll() {
       ...pageMetaFromRow({ ...row, chars: row.search_text.length }),
       blocks: (() => { try { return JSON.parse(row.blocks); } catch { return []; } })(),
     })),
+    kbDocs: listKbDocs({ limit: 500 }),
   };
 }
 
@@ -1223,6 +1251,204 @@ export function seedInitialContent() {
   });
 
   return module;
+}
+
+/* ------------------------------------------------------------------ */
+/* AI 知识库 (kb_docs)                                                  */
+/* ------------------------------------------------------------------ */
+
+export const KB_KINDS = ['recipe', 'rule', 'fact', 'reference'];
+export const KB_STATUSES = ['draft', 'published', 'archived'];
+
+function normalizeKind(kind) {
+  return KB_KINDS.includes(kind) ? kind : 'recipe';
+}
+
+function normalizeStatus(status) {
+  return KB_STATUSES.includes(status) ? status : 'draft';
+}
+
+function normalizeTags(tags) {
+  if (Array.isArray(tags)) return tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20);
+  if (typeof tags === 'string') {
+    return tags.split(/[,，\s]+/).map((t) => t.trim()).filter(Boolean).slice(0, 20);
+  }
+  return [];
+}
+
+function kbSearchText(doc) {
+  return [doc.title, doc.summary, doc.body_md, doc.tool, doc.prompt, (doc.tags || []).join(' ')]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
+}
+
+function mapKbRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    kind: row.kind,
+    status: row.status,
+    summary: row.summary,
+    bodyMd: row.body_md,
+    tool: row.tool,
+    prompt: row.prompt,
+    tags: (() => { try { return JSON.parse(row.tags); } catch { return []; } })(),
+    source: row.source,
+    sourceRef: row.source_ref,
+    version: row.version,
+    supersedesId: row.supersedes_id,
+    verifiedAt: row.verified_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function listKbDocs({ status = '', kind = '', q = '', limit = 200 } = {}) {
+  const where = [];
+  const params = [];
+  if (status) { where.push('status = ?'); params.push(normalizeStatus(status)); }
+  if (kind) { where.push('kind = ?'); params.push(normalizeKind(kind)); }
+  if (q) { where.push('search_text LIKE ?'); params.push(`%${q.toLowerCase()}%`); }
+  const sql = `SELECT * FROM kb_docs ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY updated_at DESC LIMIT ?`;
+  params.push(Math.min(Math.max(Number(limit) || 200, 1), 500));
+  return db.prepare(sql).all(...params).map(mapKbRow);
+}
+
+export function getKbDoc(id) {
+  return mapKbRow(db.prepare('SELECT * FROM kb_docs WHERE id = ?').get(id));
+}
+
+export function createKbDoc({
+  title,
+  kind = 'recipe',
+  status = 'draft',
+  summary = '',
+  bodyMd = '',
+  tool = '',
+  prompt = '',
+  tags = [],
+  source = '',
+  sourceRef = '',
+  supersedesId = null,
+} = {}) {
+  const stamp = now();
+  const doc = {
+    id: uid(),
+    title: String(title || '未命名条目').trim().slice(0, 200) || '未命名条目',
+    kind: normalizeKind(kind),
+    status: normalizeStatus(status),
+    summary: String(summary || '').trim(),
+    bodyMd: String(bodyMd || ''),
+    tool: String(tool || '').trim().slice(0, 80),
+    prompt: String(prompt || ''),
+    tags: normalizeTags(tags),
+    source: String(source || '').trim().slice(0, 60),
+    sourceRef: String(sourceRef || '').trim().slice(0, 500),
+    supersedesId: supersedesId || null,
+  };
+  db.prepare(`
+    INSERT INTO kb_docs (id, title, kind, status, summary, body_md, tool, prompt, tags, search_text, source, source_ref, version, supersedes_id, verified_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(
+    doc.id, doc.title, doc.kind, doc.status, doc.summary, doc.bodyMd, doc.tool, doc.prompt,
+    JSON.stringify(doc.tags), kbSearchText(doc), doc.source, doc.sourceRef,
+    doc.supersedesId, doc.status === 'published' ? stamp : null, stamp, stamp,
+  );
+  return getKbDoc(doc.id);
+}
+
+export function updateKbDoc(id, patch = {}) {
+  const current = getKbDoc(id);
+  if (!current) return null;
+  const next = {
+    title: patch.title != null ? String(patch.title).trim().slice(0, 200) || current.title : current.title,
+    kind: patch.kind != null ? normalizeKind(patch.kind) : current.kind,
+    status: patch.status != null ? normalizeStatus(patch.status) : current.status,
+    summary: patch.summary != null ? String(patch.summary).trim() : current.summary,
+    bodyMd: patch.bodyMd != null ? String(patch.bodyMd) : current.bodyMd,
+    tool: patch.tool != null ? String(patch.tool).trim().slice(0, 80) : current.tool,
+    prompt: patch.prompt != null ? String(patch.prompt) : current.prompt,
+    tags: patch.tags != null ? normalizeTags(patch.tags) : current.tags,
+    source: patch.source != null ? String(patch.source).trim().slice(0, 60) : current.source,
+    sourceRef: patch.sourceRef != null ? String(patch.sourceRef).trim().slice(0, 500) : current.sourceRef,
+  };
+  const stamp = now();
+  const verifiedAt = next.status === 'published'
+    ? (current.status === 'published' ? current.verifiedAt || stamp : stamp)
+    : current.verifiedAt;
+  db.prepare(`
+    UPDATE kb_docs SET title = ?, kind = ?, status = ?, summary = ?, body_md = ?, tool = ?, prompt = ?, tags = ?,
+      search_text = ?, source = ?, source_ref = ?, version = ?, verified_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    next.title, next.kind, next.status, next.summary, next.bodyMd, next.tool, next.prompt,
+    JSON.stringify(next.tags), kbSearchText(next), next.source, next.sourceRef,
+    current.version + 1, verifiedAt, stamp, id,
+  );
+  return getKbDoc(id);
+}
+
+export function setKbDocStatus(id, status) {
+  const current = getKbDoc(id);
+  if (!current) return null;
+  const next = normalizeStatus(status);
+  const stamp = now();
+  db.prepare('UPDATE kb_docs SET status = ?, verified_at = ?, updated_at = ? WHERE id = ?')
+    .run(next, next === 'published' ? stamp : current.verifiedAt, stamp, id);
+  return getKbDoc(id);
+}
+
+export function deleteKbDoc(id) {
+  return db.prepare('DELETE FROM kb_docs WHERE id = ?').run(id).changes > 0;
+}
+
+function likeEscape(value) {
+  return String(value).replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/** 给 AI 检索用：只返回已发布条目 */
+export function searchKbPublished(query, { kind = '', limit = 8 } = {}) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const words = q.split(/\s+/).filter(Boolean).slice(0, 6);
+  const clauses = [];
+  const params = [];
+  for (const word of words) {
+    clauses.push("search_text LIKE ? ESCAPE '\\'");
+    params.push(`%${likeEscape(word.toLowerCase())}%`);
+  }
+  const where = [`status = 'published'`, `(${clauses.join(' OR ')})`];
+  if (kind) { where.push('kind = ?'); params.push(normalizeKind(kind)); }
+  const orderParam = `%${likeEscape(q.toLowerCase())}%`;
+  const lim = Math.min(Math.max(Number(limit) || 8, 1), 30);
+  return db.prepare(`
+    SELECT id, title, kind, summary, body_md, tool, prompt, tags, verified_at, updated_at
+    FROM kb_docs WHERE ${where.join(' AND ')}
+    ORDER BY CASE WHEN title LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END, updated_at DESC
+    LIMIT ?
+  `).all(...params, orderParam, lim)
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      kind: row.kind,
+      summary: row.summary,
+      body: row.body_md,
+      tool: row.tool,
+      prompt: row.prompt,
+      tags: (() => { try { return JSON.parse(row.tags); } catch { return []; } })(),
+      verifiedAt: row.verified_at,
+      updatedAt: row.updated_at,
+    }));
+}
+
+export function kbStats() {
+  const rows = db.prepare('SELECT status, COUNT(*) AS n FROM kb_docs GROUP BY status').all();
+  const byKind = db.prepare('SELECT kind, COUNT(*) AS n FROM kb_docs WHERE status = \'published\' GROUP BY kind').all();
+  const stats = { draft: 0, published: 0, archived: 0 };
+  for (const row of rows) stats[row.status] = row.n;
+  return { ...stats, total: rows.reduce((sum, row) => sum + row.n, 0), byKind };
 }
 
 export function databasePath() {

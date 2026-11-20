@@ -65,8 +65,19 @@ import {
   getUserById,
   getUserByUsername,
   getTheme,
+  getSetting,
   listAIConversations,
   listAIMessages,
+  listKbDocs,
+  getKbDoc,
+  createKbDoc,
+  updateKbDoc,
+  setKbDocStatus,
+  deleteKbDoc,
+  searchKbPublished,
+  kbStats,
+  KB_KINDS,
+  KB_STATUSES,
   listModules,
   moduleSubtreeIds,
   reorderModules,
@@ -599,6 +610,140 @@ app.get('/api/search', { preHandler: requireAuth }, async (req) => {
   if (!q) return { query: '', results: [] };
   return { query: q, results: searchPages(q, 30) };
 });
+
+/* ------------------------------------------------------------------ */
+/* AI 知识库                                                            */
+/* ------------------------------------------------------------------ */
+
+const KB_TOKEN_KEY = 'kbToken';
+
+function kbToken() {
+  const existing = getSetting(KB_TOKEN_KEY, null);
+  if (existing) return String(existing);
+  const token = crypto.randomBytes(24).toString('base64url');
+  setSetting(KB_TOKEN_KEY, token);
+  return token;
+}
+
+/** 管理员会话，或者带了知识库 token 的机器调用（给 Codex MCP 用） */
+async function requireKbAccess(req, reply) {
+  const header = String(req.headers.authorization || '');
+  const bearer = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (bearer && bearer === kbToken()) return;
+  const session = resolveSession(req);
+  if (!session) {
+    return fail(reply, 401, 'UNAUTHORIZED', '需要管理员会话或知识库 token。');
+  }
+  req.session = session;
+  req.user = session.user;
+}
+
+app.get('/api/kb/stats', { preHandler: requireAuth }, async () => ({ stats: kbStats() }));
+
+app.get('/api/kb', { preHandler: requireAuth }, async (req) => ({
+  docs: listKbDocs({
+    status: String(req.query?.status || ''),
+    kind: String(req.query?.kind || ''),
+    q: String(req.query?.q || ''),
+    limit: Number(req.query?.limit) || 200,
+  }),
+  stats: kbStats(),
+  kinds: KB_KINDS,
+  statuses: KB_STATUSES,
+}));
+
+app.get('/api/kb/token', { preHandler: requireAuth }, async () => ({ token: kbToken() }));
+
+app.post('/api/kb/token', { preHandler: requireAuth }, async () => {
+  const token = crypto.randomBytes(24).toString('base64url');
+  setSetting(KB_TOKEN_KEY, token);
+  return { token };
+});
+
+app.get('/api/kb/search', { preHandler: requireKbAccess }, async (req) => {
+  const q = String(req.query?.q || '').trim();
+  const limit = Number(req.query?.limit) || 8;
+  return {
+    query: q,
+    results: searchKbPublished(q, { kind: String(req.query?.kind || ''), limit }),
+  };
+});
+
+app.post('/api/kb/propose', { preHandler: requireKbAccess }, async (req, reply) => {
+  const body = req.body || {};
+  if (!String(body.title || '').trim()) {
+    return fail(reply, 400, 'TITLE_REQUIRED', 'title 不能为空。');
+  }
+  const doc = createKbDoc({
+    title: body.title,
+    kind: body.kind || 'recipe',
+    status: 'draft',
+    summary: body.summary || '',
+    bodyMd: body.body ?? body.bodyMd ?? '',
+    tool: body.tool || '',
+    prompt: body.prompt || '',
+    tags: body.tags || [],
+    source: body.source || 'agent',
+    sourceRef: body.sourceRef || '',
+  });
+  return { doc };
+});
+
+app.get('/api/kb/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const doc = getKbDoc(req.params.id);
+  if (!doc) return fail(reply, 404, 'NOT_FOUND', '条目不存在。');
+  return { doc };
+});
+
+app.post('/api/kb', { preHandler: requireAuth }, async (req) => {
+  const body = req.body || {};
+  const doc = createKbDoc({
+    title: body.title,
+    kind: body.kind || 'recipe',
+    status: body.status || 'draft',
+    summary: body.summary || '',
+    bodyMd: body.bodyMd ?? body.body ?? '',
+    tool: body.tool || '',
+    prompt: body.prompt || '',
+    tags: body.tags || [],
+    source: body.source || 'manual',
+    sourceRef: body.sourceRef || '',
+  });
+  return { doc };
+});
+
+app.patch('/api/kb/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const existing = getKbDoc(req.params.id);
+  if (!existing) return fail(reply, 404, 'NOT_FOUND', '条目不存在。');
+  const body = req.body || {};
+  const doc = updateKbDoc(req.params.id, {
+    title: body.title,
+    kind: body.kind,
+    status: body.status,
+    summary: body.summary,
+    bodyMd: body.bodyMd ?? body.body,
+    tool: body.tool,
+    prompt: body.prompt,
+    tags: body.tags,
+    source: body.source,
+    sourceRef: body.sourceRef,
+  });
+  return { doc };
+});
+
+app.post('/api/kb/:id/status', { preHandler: requireAuth }, async (req, reply) => {
+  const existing = getKbDoc(req.params.id);
+  if (!existing) return fail(reply, 404, 'NOT_FOUND', '条目不存在。');
+  const status = String(req.body?.status || '');
+  if (!KB_STATUSES.includes(status)) return fail(reply, 400, 'BAD_STATUS', '状态不合法。');
+  return { doc: setKbDocStatus(req.params.id, status) };
+});
+
+app.delete('/api/kb/:id', { preHandler: requireAuth }, async (req, reply) => {
+  if (!deleteKbDoc(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '条目不存在。');
+  return { ok: true };
+});
+
 
 app.get('/api/export', { preHandler: requireAuth }, async (req, reply) => {
   const stamp = new Date().toISOString().slice(0, 10);
