@@ -229,6 +229,14 @@ function migrate() {
     `);
   }
 
+  if (version < 10) {
+    db.exec(`
+      ALTER TABLE assets ADD COLUMN purpose TEXT NOT NULL DEFAULT 'unknown';
+      CREATE INDEX IF NOT EXISTS idx_assets_purpose ON assets(purpose, created_at);
+      PRAGMA user_version = 10;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -1119,17 +1127,26 @@ export function exportAll() {
 /* assets                                                              */
 /* ------------------------------------------------------------------ */
 
-export function createAsset({ filename, originalName, mime, size }) {
+export function createAsset({ filename, originalName, mime, size, purpose = 'unknown' }) {
   const id = uid();
   db.prepare(`
-    INSERT INTO assets (id, filename, original_name, mime, size, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, filename, originalName, mime, size, now());
-  return { id, filename, originalName, mime, size };
+    INSERT INTO assets (id, filename, original_name, mime, size, purpose, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, filename, originalName, mime, size, purpose, now());
+  return { id, filename, originalName, mime, size, purpose };
 }
 
 export function getAsset(id) {
   return db.prepare('SELECT * FROM assets WHERE id = ?').get(id) || null;
+}
+
+export function listAssets(limit = 500) {
+  return db.prepare(`
+    SELECT id, filename, original_name, mime, size, purpose, created_at
+    FROM assets
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(Math.min(2000, Math.max(1, Number(limit) || 500)));
 }
 
 /* ------------------------------------------------------------------ */

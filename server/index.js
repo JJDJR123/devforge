@@ -62,6 +62,7 @@ import {
   getPublicPage,
   getPublicPageBreadcrumb,
   getPublicPageLinks,
+  getSiteSettings,
   getUserById,
   getUserByUsername,
   getTheme,
@@ -78,6 +79,7 @@ import {
   kbStats,
   KB_KINDS,
   KB_STATUSES,
+  listAssets,
   listModules,
   moduleSubtreeIds,
   reorderModules,
@@ -850,11 +852,14 @@ app.post('/api/uploads', { preHandler: requireAuth }, async (req, reply) => {
     return fail(reply, 400, 'EMPTY_FILE', '文件是空的。');
   }
 
+  const rawPurpose = String(req.query?.purpose || 'note');
+  const purpose = ['note', 'module_icon', 'site_logo'].includes(rawPurpose) ? rawPurpose : 'note';
   const asset = createAsset({
     filename,
     originalName,
     mime: part.mimetype,
     size: stat.size,
+    purpose,
   });
 
   return {
@@ -863,6 +868,69 @@ app.post('/api/uploads', { preHandler: requireAuth }, async (req, reply) => {
     name: originalName,
     mime: part.mimetype,
     size: stat.size,
+    purpose: asset.purpose,
+  };
+});
+
+function assetIdFromUrl(value) {
+  const match = String(value || '').match(/\/api\/(?:public\/)?assets\/([0-9a-f-]{36})/i);
+  return match ? match[1] : '';
+}
+
+app.get('/api/assets', { preHandler: requireAuth }, async () => {
+  const usage = new Map();
+  const addUsage = (assetId, kind, label) => {
+    if (!assetId) return;
+    const entry = usage.get(assetId) || { site: false, modules: [], pages: [] };
+    if (kind === 'site') entry.site = true;
+    if (kind === 'module' && !entry.modules.includes(String(label))) entry.modules.push(String(label));
+    if (kind === 'page' && !entry.pages.includes(String(label))) entry.pages.push(String(label));
+    usage.set(assetId, entry);
+  };
+
+  addUsage(assetIdFromUrl(getSiteSettings().logoUrl), 'site');
+  for (const module of listModules()) {
+    addUsage(assetIdFromUrl(module.iconUrl), 'module', module.title);
+  }
+  const pageRows = db.prepare('SELECT id, title, blocks FROM pages').all();
+  const assetPattern = /\/api\/(?:public\/)?assets\/([0-9a-f-]{36})/gi;
+  for (const row of pageRows) {
+    let blocks = [];
+    try { blocks = JSON.parse(row.blocks || '[]'); } catch { blocks = []; }
+    const raw = JSON.stringify(blocks);
+    for (const match of raw.matchAll(assetPattern)) {
+      addUsage(match[1], 'page', row.title);
+    }
+  }
+
+  const assets = listAssets(1000).map((asset) => {
+    const usedBy = usage.get(asset.id) || { site: false, modules: [], pages: [] };
+    const category = usedBy.site
+      ? 'site_logo'
+      : usedBy.modules.length
+        ? 'module_icon'
+        : usedBy.pages.length
+          ? 'note'
+          : 'orphan';
+    return {
+      id: asset.id,
+      url: `/api/assets/${asset.id}`,
+      name: asset.original_name,
+      mime: asset.mime,
+      size: asset.size,
+      purpose: asset.purpose || 'unknown',
+      category,
+      usedBy,
+      createdAt: asset.created_at,
+    };
+  });
+
+  return {
+    assets,
+    counts: assets.reduce((result, asset) => {
+      result[asset.category] = (result[asset.category] || 0) + 1;
+      return result;
+    }, {}),
   };
 });
 

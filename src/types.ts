@@ -205,6 +205,31 @@ export type UploadResult = {
   name: string;
   mime: string;
   size: number;
+  purpose?: AssetPurpose;
+};
+
+export type AssetPurpose = 'note' | 'module_icon' | 'site_logo' | 'unknown';
+export type AssetCategory = 'note' | 'module_icon' | 'site_logo' | 'orphan';
+
+export type AssetItem = {
+  id: string;
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+  purpose: AssetPurpose;
+  category: AssetCategory;
+  createdAt: string;
+  usedBy: {
+    site: boolean;
+    modules: string[];
+    pages: string[];
+  };
+};
+
+export type AssetsResponse = {
+  assets: AssetItem[];
+  counts: Partial<Record<AssetCategory, number>>;
 };
 
 export type ApiErrorBody = {

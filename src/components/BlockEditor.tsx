@@ -100,7 +100,7 @@ export function BlockEditor({
       : undefined,
     uploadFile: async (file: File) => {
       try {
-        const result = await api.upload(file);
+        const result = await api.upload(file, 'note');
         return result.url;
       } catch (error) {
         toast(getErrorMessage(error), 'error');

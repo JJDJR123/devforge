@@ -397,7 +397,7 @@ function SitePanel() {
     setError('');
     try {
       const prepared = await resizeImageFile(file, 512, 0.9);
-      const result = await api.upload(prepared);
+      const result = await api.upload(prepared, 'site_logo');
       setLogoUrl(result.url);
     } catch (uploadError) {
       setError(getErrorMessage(uploadError));

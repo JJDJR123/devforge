@@ -54,7 +54,7 @@ export function ModuleDialog({
     setError('');
     try {
       const prepared = await resizeImageFile(file, 256, 0.86);
-      const result = await api.upload(prepared);
+      const result = await api.upload(prepared, 'module_icon');
       setIconUrl(result.url);
     } catch (uploadError) {
       setError(getErrorMessage(uploadError));

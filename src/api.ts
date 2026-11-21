@@ -4,6 +4,8 @@ import type {
   AIConversation,
   AIMessage,
   AIStatus,
+  AssetPurpose,
+  AssetsResponse,
   BlockRecord,
   Bootstrap,
   Breadcrumb,
@@ -191,12 +193,14 @@ export const api = {
   search: (q: string) =>
     request<{ query: string; results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 
-  upload: async (file: File) => {
+  upload: async (file: File, purpose: AssetPurpose = 'note') => {
     const prepared = await compressImageForUpload(file);
     const form = new FormData();
     form.append('file', prepared);
-    return request<UploadResult>('/api/uploads', { method: 'POST', body: form });
+    return request<UploadResult>(`/api/uploads?purpose=${encodeURIComponent(purpose)}`, { method: 'POST', body: form });
   },
+
+  assets: () => request<AssetsResponse>('/api/assets'),
 
   downloadExport: async () => {
     const response = await fetch('/api/export', { credentials: 'include' });

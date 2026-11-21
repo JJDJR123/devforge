@@ -10,6 +10,7 @@ import {
   FilePlus2,
   FolderPlus,
   Globe2,
+  Images,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -309,6 +310,14 @@ export function Sidebar({
           >
             <BookOpen size={17} />
             <span>知识库</span>
+          </button>
+          <button
+            type="button"
+            className={cn('nav-item', location.pathname.startsWith('/assets') && 'is-active')}
+            onClick={() => go('/assets')}
+          >
+            <Images size={17} />
+            <span>素材库</span>
           </button>
         </nav>
 
