@@ -35,11 +35,13 @@ export function BlockEditor({
   onSaved,
   onStatusChange,
   onDocumentChange,
+  suppressUnmountSaveRef,
 }: {
   page: Page;
   onSaved?: (updatedAt: string, chars: number, todoTotal: number, todoDone: number) => void;
   onStatusChange?: (status: SaveStatus) => void;
   onDocumentChange?: (blocks: BlockRecord[]) => void;
+  suppressUnmountSaveRef?: { current: boolean };
 }) {
   const { toast } = useToast();
   const { theme, data } = useApp();
@@ -78,6 +80,7 @@ export function BlockEditor({
   }
 
   async function saveNow() {
+    if (suppressUnmountSaveRef?.current) return;
     if (!dirty.current) return;
     if (inFlight.current) {
       pending.current = true;
@@ -118,7 +121,7 @@ export function BlockEditor({
   useEffect(() => {
     mounted.current = true;
     const handlePageHide = () => {
-      if (!dirty.current) return;
+      if (!dirty.current || suppressUnmountSaveRef?.current) return;
       saveContentKeepalive(
         pageIdRef.current,
         latest.current,
@@ -129,7 +132,7 @@ export function BlockEditor({
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       if (timer.current) clearTimeout(timer.current);
-      if (dirty.current) {
+      if (dirty.current && !suppressUnmountSaveRef?.current) {
         saveContentKeepalive(
           pageIdRef.current,
           latest.current,

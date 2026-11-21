@@ -58,7 +58,10 @@ export function PageView() {
   const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [iconOpen, setIconOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [editorVersion, setEditorVersion] = useState(0);
+  const importMode = useRef<'replace' | 'child'>('child');
   const importInputRef = useRef<HTMLInputElement>(null);
+  const suppressEditorSave = useRef(false);
   const latestBlocks = useRef<BlockRecord[]>([]);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleValue = useRef('');
@@ -121,6 +124,10 @@ export function PageView() {
     element.style.height = '0px';
     element.style.height = `${Math.max(48, element.scrollHeight)}px`;
   }, [page?.title]);
+
+  useEffect(() => {
+    suppressEditorSave.current = false;
+  }, [editorVersion]);
 
   useEffect(() => {
     if (!iconOpen) return;
@@ -206,7 +213,7 @@ export function PageView() {
     }
   }
 
-  async function importMarkdownFile(file: File) {
+  async function importMarkdownFile(file: File, mode: 'replace' | 'child') {
     if (!page) return;
     if (file.size > 1_500_000) {
       toast('Markdown 文件太大了，请控制在 1.5MB 以内。', 'error');
@@ -221,6 +228,43 @@ export function PageView() {
       }
       const fallbackTitle = file.name.replace(/\.(md|markdown)$/i, '').trim() || '导入的笔记';
       const { title, blocks } = markdownToBlocks(text, fallbackTitle);
+
+      if (mode === 'replace') {
+        const ok = await confirm({
+          title: '覆盖当前页面？',
+          message: `「${page.title || '未命名页面'}」里的所有内容会被这段 Markdown 替换，页面标题保留。这个操作不能撤销。`,
+          confirmText: '覆盖内容',
+          danger: true,
+        });
+        if (!ok) return;
+        suppressEditorSave.current = true;
+        try {
+          const saved = await api.saveContent(page.id, blocks, extractPlainText(blocks));
+          const chars = totalChars(blocks);
+          latestBlocks.current = blocks;
+          applyPageMeta(page.id, {
+            chars,
+            todoTotal: saved.todoTotal,
+            todoDone: saved.todoDone,
+            updatedAt: saved.updatedAt,
+          });
+          setPage((current) => current ? {
+            ...current,
+            blocks,
+            chars,
+            todoTotal: saved.todoTotal,
+            todoDone: saved.todoDone,
+            updatedAt: saved.updatedAt,
+          } : current);
+          setEditorVersion((value) => value + 1);
+          toast('当前页面内容已被 Markdown 覆盖。', 'success');
+          return;
+        } catch (saveError) {
+          suppressEditorSave.current = false;
+          throw saveError;
+        }
+      }
+
       const created = await api.createPage({
         moduleId: page.moduleId,
         parentId: page.id,
@@ -468,7 +512,7 @@ export function PageView() {
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) void importMarkdownFile(file);
+              if (file) void importMarkdownFile(file, importMode.current);
             }}
           />
           <DropdownMenu
@@ -478,7 +522,8 @@ export function PageView() {
               </button>
             )}
             items={[
-              { label: importing ? '正在导入…' : '导入 Markdown', icon: FileUp, onSelect: () => { if (!importing) importInputRef.current?.click(); } },
+              { label: importing ? '正在导入…' : '导入 Markdown（覆盖本页）', icon: FileUp, danger: true, onSelect: () => { if (!importing) { importMode.current = 'replace'; importInputRef.current?.click(); } } },
+              { label: importing ? '正在导入…' : '导入 Markdown（新建子页面）', icon: FileUp, onSelect: () => { if (!importing) { importMode.current = 'child'; importInputRef.current?.click(); } } },
               { label: '导出 Markdown', icon: Download, onSelect: exportMarkdown },
               { label: '复制页面链接', icon: Copy, onSelect: () => { void copyLink(); } },
               { label: '新建子页面', icon: FilePlus2, onSelect: () => { void addSubpage(); } },
@@ -491,8 +536,9 @@ export function PageView() {
 
       <div className="page-editor">
         <BlockEditor
-          key={page.id}
+          key={`${page.id}-${editorVersion}`}
           page={page}
+          suppressUnmountSaveRef={suppressEditorSave}
           onStatusChange={setSaveStatus}
           onDocumentChange={(blocks) => { latestBlocks.current = blocks; }}
           onSaved={(updatedAt, chars, todoTotal, todoDone) => {
