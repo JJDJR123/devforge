@@ -1157,7 +1157,15 @@ function extractSearchText(blocks) {
       if (block.type === 'table' && block.content?.type === 'tableContent') {
         for (const row of block.content.rows || []) {
           for (const cell of row.cells || []) {
-            for (const item of cell || []) {
+            if (typeof cell === 'string') {
+              out.push(cell);
+              continue;
+            }
+            if (!Array.isArray(cell)) {
+              if (cell && typeof cell === 'object' && typeof cell.text === 'string') out.push(cell.text);
+              continue;
+            }
+            for (const item of cell) {
               if (item && typeof item.text === 'string') out.push(item.text);
             }
           }

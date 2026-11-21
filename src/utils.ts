@@ -83,24 +83,36 @@ type AnyBlock = {
 
 export function extractPlainText(blocks: unknown): string {
   const out: string[] = [];
+  const pushInline = (items: unknown) => {
+    if (typeof items === 'string') {
+      out.push(items);
+      return;
+    }
+    if (!Array.isArray(items)) {
+      if (items && typeof items === 'object' && typeof (items as { text?: unknown }).text === 'string') {
+        out.push((items as { text: string }).text);
+      }
+      return;
+    }
+    for (const item of items) {
+      if (item && typeof item === 'object' && typeof (item as { text?: unknown }).text === 'string') {
+        out.push((item as { text: string }).text);
+      }
+    }
+  };
   const walk = (list: unknown) => {
     if (!Array.isArray(list)) return;
     for (const raw of list) {
       const block = raw as AnyBlock;
       if (!block || typeof block !== 'object') continue;
       if (Array.isArray(block.content)) {
-        for (const item of block.content) {
-          if (item && typeof item.text === 'string') out.push(item.text);
-        }
+        pushInline(block.content);
       } else if (block.content && typeof block.content === 'object') {
-        const table = block.content as { type?: string; rows?: Array<{ cells?: InlineItem[][] }> };
+        const table = block.content as { type?: string; rows?: Array<{ cells?: unknown }> };
         if (table.type === 'tableContent' && Array.isArray(table.rows)) {
           for (const row of table.rows) {
-            for (const cell of row.cells || []) {
-              for (const item of cell || []) {
-                if (item && typeof item.text === 'string') out.push(item.text);
-              }
-            }
+            const cells = Array.isArray(row?.cells) ? row.cells : [];
+            for (const cell of cells) pushInline(cell);
           }
         }
       } else if (typeof block.content === 'string') {
@@ -202,10 +214,20 @@ export function blocksToMarkdown(blocks: unknown): string {
           lines.push(`[音频](${String(block.props?.url || '')})`, '');
           break;
         case 'table': {
-          const table = block.content as { rows?: Array<{ cells?: InlineItem[][] }> } | undefined;
-          const rows = table?.rows || [];
+          const table = block.content as { rows?: Array<{ cells?: unknown }> } | undefined;
+          const rows = Array.isArray(table?.rows) ? table.rows : [];
           if (rows.length) {
-            const cells = rows.map((row) => (row.cells || []).map((cell) => inlineMarkdown(cell).replace(/\|/g, '\\|')));
+            const cells = rows.map((row) => {
+              const rawCells = Array.isArray(row?.cells) ? row.cells : [];
+              return rawCells.map((cell) => {
+                const inline = Array.isArray(cell)
+                  ? inlineMarkdown(cell as InlineItem[])
+                  : typeof cell === 'string'
+                    ? cell
+                    : '';
+                return inline.replace(/\|/g, '\\|');
+              });
+            });
             const width = Math.max(...cells.map((row) => row.length));
             const padded = cells.map((row) => [...row, ...Array(width - row.length).fill('')]);
             lines.push(`| ${padded[0].join(' | ')} |`);

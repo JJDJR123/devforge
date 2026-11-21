@@ -12,6 +12,7 @@ import { Link2 } from 'lucide-react';
 import { api, saveContentKeepalive } from '../api';
 import type { BlockRecord, Page } from '../types';
 import { extractPlainText, countTodos, getErrorMessage } from '../utils';
+import { clearPageDraft, readPageDraft, writePageDraft, type PageDraft } from '../draft';
 import { useToast } from './Toast';
 import { useApp } from '../state/AppContext';
 import { EmbedBlock } from './EmbedBlock';
@@ -74,11 +75,19 @@ export function BlockEditor({
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [activeTextColor, setActiveTextColor] = useState('default');
-  const latest = useRef<any[]>(page.blocks);
+  const draftRef = useRef<PageDraft | null | undefined>(undefined);
+  if (draftRef.current === undefined) {
+    draftRef.current = readPageDraft(page.id, page.updatedAt);
+  }
+  const restoredDraft = draftRef.current;
+  const initialBlocks = restoredDraft?.blocks ?? page.blocks;
+  const latest = useRef<any[]>(initialBlocks);
   const dirty = useRef(false);
   const inFlight = useRef(false);
   const pending = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const errorToastShown = useRef(false);
   const mounted = useRef(false);
   const pageIdRef = useRef(page.id);
   pageIdRef.current = page.id;
@@ -86,8 +95,8 @@ export function BlockEditor({
   const editor = useCreateBlockNote({
     schema,
     dictionary: zh,
-    initialContent: page.blocks.length
-      ? (wikiLinksToMarks(page.blocks, data?.pages || [], data?.modules || []) as unknown as PartialBlock[])
+    initialContent: initialBlocks.length
+      ? (wikiLinksToMarks(initialBlocks as BlockRecord[], data?.pages || [], data?.modules || []) as unknown as PartialBlock[])
       : undefined,
     uploadFile: async (file: File) => {
       try {
@@ -120,6 +129,15 @@ export function BlockEditor({
     syncTextColor();
   }
 
+  function rememberDraft() {
+    if (suppressUnmountSaveRef?.current) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      draftTimer.current = null;
+      writePageDraft(pageIdRef.current, latest.current);
+    }, 180);
+  }
+
   async function saveNow() {
     if (suppressUnmountSaveRef?.current) return;
     if (!dirty.current) return;
@@ -129,21 +147,33 @@ export function BlockEditor({
     }
 
     const snapshot = latest.current;
-    const searchText = extractPlainText(snapshot);
-    const todo = countTodos(snapshot);
     inFlight.current = true;
     changeStatus('saving');
     try {
+      const searchText = extractPlainText(snapshot);
+      const todo = countTodos(snapshot);
       const result = await api.saveContent(pageIdRef.current, snapshot, searchText);
       if (latest.current === snapshot) {
         dirty.current = false;
         changeStatus('saved');
+        clearPageDraft(pageIdRef.current);
+        if (draftTimer.current) {
+          clearTimeout(draftTimer.current);
+          draftTimer.current = null;
+        }
       } else {
         pending.current = true;
       }
+      errorToastShown.current = false;
       onSaved?.(result.updatedAt, searchText.replace(/\s/g, '').length, todo.total, todo.done);
-    } catch {
+    } catch (error) {
+      // 保存失败时先落本地草稿，下一步不会再因为切页/刷新而丢。
+      writePageDraft(pageIdRef.current, snapshot);
       changeStatus('error');
+      if (!errorToastShown.current) {
+        errorToastShown.current = true;
+        toast(`保存失败，内容已暂存在本机：${getErrorMessage(error)}`, 'error');
+      }
     } finally {
       inFlight.current = false;
       if (pending.current) {
@@ -163,24 +193,55 @@ export function BlockEditor({
     mounted.current = true;
     const handlePageHide = () => {
       if (!dirty.current || suppressUnmountSaveRef?.current) return;
-      saveContentKeepalive(
-        pageIdRef.current,
-        latest.current,
-        extractPlainText(latest.current),
-      );
-    };
-    window.addEventListener('pagehide', handlePageHide);
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      if (timer.current) clearTimeout(timer.current);
-      if (dirty.current && !suppressUnmountSaveRef?.current) {
+      try {
+        writePageDraft(pageIdRef.current, latest.current);
         saveContentKeepalive(
           pageIdRef.current,
           latest.current,
           extractPlainText(latest.current),
         );
+      } catch (error) {
+        console.error('DEVFORGE pagehide save failed', error);
       }
     };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      if (timer.current) clearTimeout(timer.current);
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      if (dirty.current && !suppressUnmountSaveRef?.current) {
+        try {
+          writePageDraft(pageIdRef.current, latest.current);
+          saveContentKeepalive(
+            pageIdRef.current,
+            latest.current,
+            extractPlainText(latest.current),
+          );
+        } catch (error) {
+          console.error('DEVFORGE unmount save failed', error);
+        }
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!restoredDraft) return;
+    dirty.current = true;
+    changeStatus('dirty');
+    toast('已恢复上次未保存的本地草稿，正在重新保存。', 'success');
+    timer.current = setTimeout(() => { void saveNow(); }, 500);
+    // restoredDraft 只在挂载时读取一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   function insertEmbedItem() {
@@ -304,6 +365,7 @@ export function BlockEditor({
           onDocumentChange?.(instance.document as unknown as BlockRecord[]);
           if (!mounted.current) return;
           dirty.current = true;
+          rememberDraft();
           scheduleSave();
         }}
       >

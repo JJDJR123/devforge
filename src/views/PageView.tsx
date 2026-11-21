@@ -25,6 +25,7 @@ import { EmojiPicker } from '../components/EmojiPicker';
 import { BlockEditor, type SaveStatus } from '../components/BlockEditor';
 import { WikiPreview } from '../components/WikiPreview';
 import { markdownToBlocks } from '../markdown';
+import { clearPageDraft } from '../draft';
 import type { BlockRecord, Breadcrumb, Page, PageLinks } from '../types';
 import {
   blocksToMarkdown,
@@ -96,8 +97,8 @@ export function PageView() {
       cancelled = true;
       if (titleTimer.current) clearTimeout(titleTimer.current);
       const value = titleValue.current.trim();
-      if (value) saveMetaKeepalive(pageId, value);
-      else if (titleValue.current !== lastSavedTitle.current) saveMetaKeepalive(pageId, '未命名页面');
+      if (value && value !== lastSavedTitle.current) saveMetaKeepalive(pageId, value);
+      else if (!value && titleValue.current !== lastSavedTitle.current) saveMetaKeepalive(pageId, '未命名页面');
     };
   }, [pageId]);
 
@@ -237,6 +238,7 @@ export function PageView() {
           danger: true,
         });
         if (!ok) return;
+        clearPageDraft(page.id);
         suppressEditorSave.current = true;
         try {
           const saved = await api.saveContent(page.id, blocks, extractPlainText(blocks));

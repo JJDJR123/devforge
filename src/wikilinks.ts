@@ -65,6 +65,51 @@ function convertContent(
   return content;
 }
 
+function normalizeInlineItems(items: unknown[]): unknown[] {
+  const out: unknown[] = [];
+  for (const item of items) {
+    if (typeof item === 'string') {
+      out.push({ type: 'text', text: item, styles: {} });
+      continue;
+    }
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    if (record.type === 'text' || record.type === 'link') {
+      out.push(record);
+      continue;
+    }
+    if (typeof record.text === 'string') {
+      out.push({ type: 'text', text: record.text, styles: record.styles || {} });
+      continue;
+    }
+    out.push({ type: 'text', text: '[图片]', styles: {} });
+  }
+  return out.length ? out : [{ type: 'text', text: '', styles: {} }];
+}
+
+function normalizeTableCell(
+  cell: unknown,
+  pages: PageMeta[],
+  modules: Module[],
+): unknown[] {
+  if (Array.isArray(cell)) {
+    return normalizeInlineItems(convertContent(cell, pages, modules) as unknown[]);
+  }
+  if (typeof cell === 'string') {
+    // Older imports occasionally stored PowerShell-style strings such as
+    // "@{type=text; text=模块; styles=}" in table cells. Recover the text
+    // instead of crashing BlockNote's table renderer.
+    const match = cell.match(/(?:^|[;{]\s*)text=([^;}]*)/);
+    return [{ type: 'text', text: (match?.[1] || cell).trim(), styles: {} }];
+  }
+  if (cell && typeof cell === 'object') {
+    const record = cell as Record<string, unknown>;
+    if (record.type === 'text' || record.type === 'link') return [record];
+    if (typeof record.text === 'string') return [{ type: 'text', text: record.text, styles: {} }];
+  }
+  return [{ type: 'text', text: '[图片]', styles: {} }];
+}
+
 function convertBlock(block: BlockRecord, pages: PageMeta[], modules: Module[]): BlockRecord {
   if (!block || typeof block !== 'object') return block;
   if ((block as { type?: string }).type === 'codeBlock') return block;
@@ -82,7 +127,7 @@ function convertBlock(block: BlockRecord, pages: PageMeta[], modules: Module[]):
           if (!Array.isArray(cells)) return row;
           return {
             ...(row as Record<string, unknown>),
-            cells: cells.map((cell) => convertContent(cell, pages, modules)),
+            cells: cells.map((cell) => normalizeTableCell(cell, pages, modules)),
           };
         }),
       };
