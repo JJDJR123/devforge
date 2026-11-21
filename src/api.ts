@@ -18,6 +18,7 @@ import type {
   UploadResult,
   User,
 } from './types';
+import { compressImageForUpload } from './imageCompression';
 
 export const UNAUTHORIZED_EVENT = 'devforge:unauthorized';
 
@@ -191,8 +192,9 @@ export const api = {
     request<{ query: string; results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 
   upload: async (file: File) => {
+    const prepared = await compressImageForUpload(file);
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', prepared);
     return request<UploadResult>('/api/uploads', { method: 'POST', body: form });
   },
 
