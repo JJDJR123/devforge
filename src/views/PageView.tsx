@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   FilePlus2,
+  FileUp,
   Link2,
   Loader2,
   MoreHorizontal,
@@ -23,6 +24,7 @@ import { DropdownMenu } from '../components/DropdownMenu';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { BlockEditor, type SaveStatus } from '../components/BlockEditor';
 import { WikiPreview } from '../components/WikiPreview';
+import { markdownToBlocks } from '../markdown';
 import type { BlockRecord, Breadcrumb, Page, PageLinks } from '../types';
 import {
   blocksToMarkdown,
@@ -55,9 +57,13 @@ export function PageView() {
   const [creatingLinkId, setCreatingLinkId] = useState('');
   const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [iconOpen, setIconOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const latestBlocks = useRef<BlockRecord[]>([]);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleValue = useRef('');
+  const titleSaveSeq = useRef(0);
+  const lastSavedTitle = useRef('');
   const iconRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const pageRef = useRef<Page | null>(null);
@@ -74,6 +80,8 @@ export function PageView() {
         setBreadcrumb(result.breadcrumb);
         latestBlocks.current = result.page.blocks;
         titleValue.current = result.page.title;
+        lastSavedTitle.current = result.page.title;
+        titleSaveSeq.current += 1;
         setLoading(false);
       })
       .catch((fetchError) => {
@@ -83,10 +91,10 @@ export function PageView() {
       });
     return () => {
       cancelled = true;
-      if (titleTimer.current) {
-        clearTimeout(titleTimer.current);
-        if (titleValue.current) saveMetaKeepalive(pageId, titleValue.current);
-      }
+      if (titleTimer.current) clearTimeout(titleTimer.current);
+      const value = titleValue.current.trim();
+      if (value) saveMetaKeepalive(pageId, value);
+      else if (titleValue.current !== lastSavedTitle.current) saveMetaKeepalive(pageId, '未命名页面');
     };
   }, [pageId]);
 
@@ -129,20 +137,57 @@ export function PageView() {
     setPage({ ...page, title: value });
     applyPageMeta(page.id, { title: value });
     if (titleTimer.current) clearTimeout(titleTimer.current);
+    const seq = ++titleSaveSeq.current;
+    // 编辑过程中允许暂时为空，但不要把空标题保存到服务端。
+    if (!value.trim()) return;
     titleTimer.current = setTimeout(() => {
-      void persistTitle(value);
+      void persistTitle(value, seq);
     }, 550);
   }
 
-  async function persistTitle(value: string) {
-    if (!pageRef.current) return;
+  async function persistTitle(value: string, seq: number) {
+    if (!pageRef.current || !value.trim()) return;
     try {
       const result = await api.updatePageMeta(pageRef.current.id, { title: value });
+      if (seq !== titleSaveSeq.current) return;
+      lastSavedTitle.current = result.page.title;
       applyPageMeta(result.page.id, { title: result.page.title, updatedAt: result.page.updatedAt });
       setPage((current) => current ? { ...current, title: result.page.title, updatedAt: result.page.updatedAt } : current);
+      titleValue.current = result.page.title;
     } catch (titleError) {
       toast(getErrorMessage(titleError), 'error');
     }
+  }
+
+  function finishTitleEdit() {
+    if (titleTimer.current) {
+      clearTimeout(titleTimer.current);
+      titleTimer.current = null;
+    }
+    const value = titleValue.current.trim();
+    // 离开编辑状态时仍为空：明确变成“未命名页面”，不恢复旧标题。
+    const next = value || '未命名页面';
+    const seq = ++titleSaveSeq.current;
+    titleValue.current = next;
+    if (page) {
+      setPage({ ...page, title: next });
+      applyPageMeta(page.id, { title: next });
+    }
+    void persistTitle(next, seq);
+  }
+
+  function cancelTitleEdit() {
+    if (titleTimer.current) {
+      clearTimeout(titleTimer.current);
+      titleTimer.current = null;
+    }
+    titleSaveSeq.current += 1;
+    titleValue.current = lastSavedTitle.current;
+    if (page) {
+      setPage({ ...page, title: lastSavedTitle.current });
+      applyPageMeta(page.id, { title: lastSavedTitle.current });
+    }
+    titleRef.current?.blur();
   }
 
   async function changeIcon(icon: string) {
@@ -158,6 +203,39 @@ export function PageView() {
       setPage((current) => current ? { ...current, icon: previous } : current);
       applyPageMeta(page.id, { icon: previous });
       toast(getErrorMessage(iconError), 'error');
+    }
+  }
+
+  async function importMarkdownFile(file: File) {
+    if (!page) return;
+    if (file.size > 1_500_000) {
+      toast('Markdown 文件太大了，请控制在 1.5MB 以内。', 'error');
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        toast('这个 Markdown 文件是空的。', 'error');
+        return;
+      }
+      const fallbackTitle = file.name.replace(/\.(md|markdown)$/i, '').trim() || '导入的笔记';
+      const { title, blocks } = markdownToBlocks(text, fallbackTitle);
+      const created = await api.createPage({
+        moduleId: page.moduleId,
+        parentId: page.id,
+        title,
+        icon: '📝',
+      });
+      await api.saveContent(created.page.id, blocks, extractPlainText(blocks));
+      await refresh();
+      toast('Markdown 已导入为子页面。', 'success');
+      navigate(`/page/${created.page.id}`);
+    } catch (importError) {
+      toast(getErrorMessage(importError), 'error');
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   }
 
@@ -349,14 +427,15 @@ export function PageView() {
             maxLength={160}
             placeholder="未命名页面"
             onChange={(event) => updateTitle(event.target.value)}
-            onBlur={() => {
-              if (titleTimer.current) clearTimeout(titleTimer.current);
-              void persistTitle(titleValue.current);
-            }}
+            onBlur={finishTitleEdit}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
                 event.currentTarget.blur();
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelTitleEdit();
               }
             }}
             spellCheck={false}
@@ -382,6 +461,16 @@ export function PageView() {
           <button type="button" className="btn btn-ghost btn-sm page-add-child" onClick={() => { void addSubpage(); }}>
             <FilePlus2 size={15} /> 子页面
           </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void importMarkdownFile(file);
+            }}
+          />
           <DropdownMenu
             trigger={(
               <button type="button" className="icon-btn page-more" aria-label="页面菜单">
@@ -389,6 +478,7 @@ export function PageView() {
               </button>
             )}
             items={[
+              { label: importing ? '正在导入…' : '导入 Markdown', icon: FileUp, onSelect: () => { if (!importing) importInputRef.current?.click(); } },
               { label: '导出 Markdown', icon: Download, onSelect: exportMarkdown },
               { label: '复制页面链接', icon: Copy, onSelect: () => { void copyLink(); } },
               { label: '新建子页面', icon: FilePlus2, onSelect: () => { void addSubpage(); } },
