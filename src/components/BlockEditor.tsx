@@ -21,6 +21,31 @@ import { wikiLinksToMarks } from '../wikilinks';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
+const TEXT_COLORS = [
+  { value: 'default', label: '默认' },
+  { value: 'gray', label: '灰色' },
+  { value: 'brown', label: '棕色' },
+  { value: 'red', label: '红色' },
+  { value: 'orange', label: '橙色' },
+  { value: 'yellow', label: '黄色' },
+  { value: 'green', label: '绿色' },
+  { value: 'blue', label: '蓝色' },
+  { value: 'purple', label: '紫色' },
+  { value: 'pink', label: '粉色' },
+] as const;
+
+const TEXT_COLOR_VALUES: Record<string, string> = {
+  gray: '#9b9a97',
+  brown: '#64473a',
+  red: '#e03e3e',
+  orange: '#d9730d',
+  yellow: '#dfab01',
+  green: '#4d6461',
+  blue: '#0b6e99',
+  purple: '#6940a5',
+  pink: '#ad1a72',
+};
+
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
@@ -48,6 +73,7 @@ export function BlockEditor({
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [previewHref, setPreviewHref] = useState<string | null>(null);
+  const [activeTextColor, setActiveTextColor] = useState('default');
   const latest = useRef<any[]>(page.blocks);
   const dirty = useRef(false);
   const inFlight = useRef(false);
@@ -77,6 +103,21 @@ export function BlockEditor({
   function changeStatus(next: SaveStatus) {
     setStatus(next);
     onStatusChange?.(next);
+  }
+
+  function syncTextColor() {
+    const color = editor.getActiveStyles().textColor;
+    setActiveTextColor(typeof color === 'string' && color ? color : 'default');
+  }
+
+  function applyTextColor(color: string) {
+    editor.focus();
+    if (color === 'default') {
+      editor.removeStyles({ textColor: 'default' } as never);
+    } else {
+      editor.addStyles({ textColor: color } as never);
+    }
+    syncTextColor();
   }
 
   async function saveNow() {
@@ -226,6 +267,25 @@ export function BlockEditor({
           <Link2 size={14} /> 关联笔记
         </button>
         <span>搜索页面或模块，选中后插入到光标</span>
+        <div className="editor-color-picker" role="group" aria-label="文字颜色">
+          <span className="editor-color-label">文字颜色</span>
+          {TEXT_COLORS.map((color) => {
+            const swatch = TEXT_COLOR_VALUES[color.value];
+            return (
+              <button
+                key={color.value}
+                type="button"
+                className={`editor-color-swatch${activeTextColor === color.value ? ' is-active' : ''}${color.value === 'default' ? ' is-default' : ''}`}
+                style={swatch ? { backgroundColor: swatch } : undefined}
+                title={color.label}
+                aria-label={`文字颜色：${color.label}`}
+                aria-pressed={activeTextColor === color.value}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => applyTextColor(color.value)}
+              />
+            );
+          })}
+        </div>
       </div>
       <BlockNoteView
         editor={editor}
@@ -238,6 +298,7 @@ export function BlockEditor({
         filePanel
         tableHandles
         emojiPicker={false}
+        onSelectionChange={syncTextColor}
         onChange={(instance) => {
           latest.current = instance.document;
           onDocumentChange?.(instance.document as unknown as BlockRecord[]);
