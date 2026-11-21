@@ -46,6 +46,7 @@ import {
   databaseSize,
   db,
   deleteAIConversation,
+  deleteAsset,
   deleteExpiredSessions,
   deleteModule,
   deleteOtherSessions,
@@ -877,7 +878,7 @@ function assetIdFromUrl(value) {
   return match ? match[1] : '';
 }
 
-app.get('/api/assets', { preHandler: requireAuth }, async () => {
+function collectAssetUsage() {
   const usage = new Map();
   const addUsage = (assetId, kind, label) => {
     if (!assetId) return;
@@ -902,16 +903,20 @@ app.get('/api/assets', { preHandler: requireAuth }, async () => {
       addUsage(match[1], 'page', row.title);
     }
   }
+  return usage;
+}
 
+function assetCategory(usedBy) {
+  if (usedBy.site) return 'site_logo';
+  if (usedBy.modules.length) return 'module_icon';
+  if (usedBy.pages.length) return 'note';
+  return 'orphan';
+}
+
+app.get('/api/assets', { preHandler: requireAuth }, async () => {
+  const usage = collectAssetUsage();
   const assets = listAssets(1000).map((asset) => {
     const usedBy = usage.get(asset.id) || { site: false, modules: [], pages: [] };
-    const category = usedBy.site
-      ? 'site_logo'
-      : usedBy.modules.length
-        ? 'module_icon'
-        : usedBy.pages.length
-          ? 'note'
-          : 'orphan';
     return {
       id: asset.id,
       url: `/api/assets/${asset.id}`,
@@ -919,7 +924,7 @@ app.get('/api/assets', { preHandler: requireAuth }, async () => {
       mime: asset.mime,
       size: asset.size,
       purpose: asset.purpose || 'unknown',
-      category,
+      category: assetCategory(usedBy),
       usedBy,
       createdAt: asset.created_at,
     };
@@ -932,6 +937,36 @@ app.get('/api/assets', { preHandler: requireAuth }, async () => {
       return result;
     }, {}),
   };
+});
+
+app.post('/api/assets/delete', { preHandler: requireAuth }, async (req, reply) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map((id) => String(id)).filter(Boolean))].slice(0, 500)
+    : [];
+  if (!ids.length) return fail(reply, 400, 'NO_IDS', '没有选择要删除的文件。');
+  const usage = collectAssetUsage();
+  const deleted = [];
+  const skipped = [];
+  for (const id of ids) {
+    const asset = getAsset(id);
+    if (!asset) {
+      skipped.push({ id, reason: 'NOT_FOUND' });
+      continue;
+    }
+    const usedBy = usage.get(id) || { site: false, modules: [], pages: [] };
+    if (usedBy.site || usedBy.modules.length || usedBy.pages.length) {
+      skipped.push({ id, reason: 'IN_USE', usedBy });
+      continue;
+    }
+    try {
+      fs.unlinkSync(path.join(UPLOAD_DIR, asset.filename));
+    } catch {
+      // 文件已丢失时仍然清理数据库记录。
+    }
+    deleteAsset(id);
+    deleted.push(id);
+  }
+  return { deleted, skipped };
 });
 
 function sendAsset(req, reply, publicCache = false) {

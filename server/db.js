@@ -1140,6 +1140,13 @@ export function getAsset(id) {
   return db.prepare('SELECT * FROM assets WHERE id = ?').get(id) || null;
 }
 
+export function deleteAsset(id) {
+  const asset = getAsset(id);
+  if (!asset) return null;
+  db.prepare('DELETE FROM assets WHERE id = ?').run(id);
+  return asset;
+}
+
 export function listAssets(limit = 500) {
   return db.prepare(`
     SELECT id, filename, original_name, mime, size, purpose, created_at

@@ -5,6 +5,7 @@ import type {
   AIMessage,
   AIStatus,
   AssetPurpose,
+  AssetsDeleteResult,
   AssetsResponse,
   BlockRecord,
   Bootstrap,
@@ -201,6 +202,9 @@ export const api = {
   },
 
   assets: () => request<AssetsResponse>('/api/assets'),
+
+  deleteAssets: (ids: string[]) =>
+    request<AssetsDeleteResult>('/api/assets/delete', { method: 'POST', body: { ids } }),
 
   downloadExport: async () => {
     const response = await fetch('/api/export', { credentials: 'include' });

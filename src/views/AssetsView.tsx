@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, FileText, ImageOff, Loader2, RefreshCw } from 'lucide-react';
+import { Copy, FileText, ImageOff, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import type { AssetCategory, AssetItem, AssetsResponse } from '../types';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 import { copyText, formatRelativeTime, getErrorMessage } from '../utils';
 
 const CATEGORY_LABEL: Record<AssetCategory | 'all', string> = {
@@ -31,10 +32,13 @@ function usageLabels(asset: AssetItem): string[] {
 
 export function AssetsView() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [data, setData] = useState<AssetsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<AssetCategory | 'all'>('all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -54,6 +58,57 @@ export function AssetsView() {
     if (!data) return [];
     return filter === 'all' ? data.assets : data.assets.filter((asset) => asset.category === filter);
   }, [data, filter]);
+
+  const orphanCount = data?.counts.orphan || 0;
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectVisible() {
+    setSelected(new Set(assets.map((asset) => asset.id)));
+  }
+
+  async function removeAssets(ids: string[], title: string) {
+    if (!ids.length || deleting) return;
+    const ok = await confirm({
+      title,
+      message: `将删除 ${ids.length} 个文件。正在被页面、模块或站点 Logo 使用的文件会自动跳过，不会破坏现有内容。`,
+      confirmText: '删除文件',
+      danger: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const result = await api.deleteAssets(ids);
+      setSelected(new Set());
+      await load();
+      if (result.deleted.length) {
+        toast(
+          result.skipped.length
+            ? `已删除 ${result.deleted.length} 个，跳过 ${result.skipped.length} 个正在使用的文件。`
+            : `已删除 ${result.deleted.length} 个文件。`,
+          'success',
+        );
+      } else {
+        toast('没有删除任何文件；这些文件正在被使用。', 'error');
+      }
+    } catch (deleteError) {
+      toast(getErrorMessage(deleteError), 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function deleteAllOrphans() {
+    const ids = (data?.assets || []).filter((asset) => asset.category === 'orphan').map((asset) => asset.id);
+    await removeAssets(ids, `删除全部未引用文件（${ids.length} 个）？`);
+  }
 
   async function copyUrl(asset: AssetItem) {
     const ok = await copyText(asset.url);
@@ -106,6 +161,34 @@ export function AssetsView() {
         ))}
       </div>
 
+      <div className="assets-bulk">
+        <span><strong>已选 {selected.size}</strong> 个</span>
+        <div className="assets-bulk-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={selectVisible} disabled={!assets.length || deleting}>
+            全选当前
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={!selected.size || deleting}>
+            清空
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={() => { void removeAssets([...selected], `删除选中的 ${selected.size} 个文件？`); }}
+            disabled={!selected.size || deleting}
+          >
+            <Trash2 size={14} /> 删除选中
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => { void deleteAllOrphans(); }}
+            disabled={!orphanCount || deleting}
+          >
+            <Trash2 size={14} /> 一键删除未引用（{orphanCount}）
+          </button>
+        </div>
+      </div>
+
       {error ? <div className="assets-error">{error}</div> : null}
       {loading && !data ? (
         <div className="assets-empty"><Loader2 size={22} className="spin" /><p>正在读取素材…</p></div>
@@ -116,7 +199,15 @@ export function AssetsView() {
           {assets.map((asset) => {
             const labels = usageLabels(asset);
             return (
-              <article key={asset.id} className="asset-card">
+              <article key={asset.id} className={`asset-card${selected.has(asset.id) ? ' is-selected' : ''}`}>
+                <label className="asset-check" title="选择这个文件">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(asset.id)}
+                    onChange={() => toggle(asset.id)}
+                    aria-label={`选择 ${asset.name}`}
+                  />
+                </label>
                 <a className="asset-preview" href={asset.url} target="_blank" rel="noreferrer">
                   {asset.mime.startsWith('image/') ? (
                     <img src={asset.url} alt={asset.name} loading="lazy" />

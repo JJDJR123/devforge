@@ -232,6 +232,15 @@ export type AssetsResponse = {
   counts: Partial<Record<AssetCategory, number>>;
 };
 
+export type AssetsDeleteResult = {
+  deleted: string[];
+  skipped: Array<{
+    id: string;
+    reason: 'NOT_FOUND' | 'IN_USE';
+    usedBy?: AssetItem['usedBy'];
+  }>;
+};
+
 export type ApiErrorBody = {
   error?: string;
   message?: string;
