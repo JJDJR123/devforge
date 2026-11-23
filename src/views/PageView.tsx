@@ -504,6 +504,17 @@ export function PageView() {
 
         <div className="page-actions">
           <SaveIndicator status={saveStatus} onRetry={() => { void retrySave(); }} />
+          <DropdownMenu
+            trigger={(
+              <button type="button" className="btn btn-ghost btn-sm page-import" aria-label="导入 Markdown">
+                <FileUp size={15} /> 导入
+              </button>
+            )}
+            items={[
+              { label: importing ? '正在导入…' : '导入 Markdown（覆盖本页）', icon: FileUp, danger: true, onSelect: () => { if (!importing) { importMode.current = 'replace'; importInputRef.current?.click(); } } },
+              { label: importing ? '正在导入…' : '导入 Markdown（新建子页面）', icon: FileUp, onSelect: () => { if (!importing) { importMode.current = 'child'; importInputRef.current?.click(); } } },
+            ]}
+          />
           <button type="button" className="btn btn-ghost btn-sm page-add-child" onClick={() => { void addSubpage(); }}>
             <FilePlus2 size={15} /> 子页面
           </button>
