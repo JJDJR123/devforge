@@ -4,6 +4,15 @@ export type User = {
   role: 'admin' | 'reader';
 };
 
+export type AdminUser = {
+  id: string;
+  username: string;
+  role: 'admin' | 'reader';
+  status: 'active' | 'suspended';
+  note: string;
+  createdAt: string;
+};
+
 export type RegistrationRequest = {
   id: string;
   username: string;

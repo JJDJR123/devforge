@@ -12,8 +12,6 @@ import {
   Globe2,
   Images,
   LayoutDashboard,
-  Inbox,
-  KeyRound,
   Lock,
   LogOut,
   Megaphone,
@@ -25,7 +23,7 @@ import {
   Settings,
   Sparkles,
   Trash2,
-  UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -325,11 +323,11 @@ export function Sidebar({
           </button>
           <button
             type="button"
-            className={cn('nav-item', location.pathname.startsWith('/requests') && 'is-active')}
-            onClick={() => go('/requests')}
+            className={cn('nav-item', location.pathname.startsWith('/accounts') && 'is-active')}
+            onClick={() => go('/accounts')}
           >
-            <UserPlus size={17} />
-            <span>注册申请</span>
+            <Users size={17} />
+            <span>账号管理</span>
           </button>
           <button
             type="button"
@@ -338,22 +336,6 @@ export function Sidebar({
           >
             <MessageCircle size={17} />
             <span>聊天室</span>
-          </button>
-          <button
-            type="button"
-            className={cn('nav-item', location.pathname.startsWith('/mailbox') && 'is-active')}
-            onClick={() => go('/mailbox')}
-          >
-            <Inbox size={17} />
-            <span>信箱</span>
-          </button>
-          <button
-            type="button"
-            className={cn('nav-item', location.pathname.startsWith('/invites') && 'is-active')}
-            onClick={() => go('/invites')}
-          >
-            <KeyRound size={17} />
-            <span>邀请码</span>
           </button>
         </nav>
 

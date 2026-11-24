@@ -11,10 +11,8 @@ import { PageView } from '../views/PageView';
 import { SettingsView } from '../views/SettingsView';
 import { KnowledgeView } from '../views/KnowledgeView';
 import { AssetsView } from '../views/AssetsView';
-import { RegistrationRequestsView } from '../views/RegistrationRequestsView';
+import { AccountAdminView } from '../views/AccountAdminView';
 import { ChatView } from '../views/ChatView';
-import { AdminMailboxView } from '../views/AdminMailboxView';
-import { InviteCodesView } from '../views/InviteCodesView';
 import { useApp } from '../state/AppContext';
 import { cn, isApplePlatform } from '../utils';
 
@@ -61,14 +59,16 @@ export function Shell() {
           : location.pathname.startsWith('/assets')
             ? '素材库'
             : location.pathname.startsWith('/requests')
-              ? '注册申请'
+              ? '账号管理'
               : location.pathname.startsWith('/chat')
                 ? '聊天室'
                 : location.pathname.startsWith('/mailbox')
-                  ? '信箱'
+                  ? '账号管理'
                   : location.pathname.startsWith('/invites')
-                    ? '邀请码'
-                    : '总览';
+                    ? '账号管理'
+                    : location.pathname.startsWith('/accounts')
+                      ? '账号管理'
+                      : '总览';
 
   return (
     <div className={cn('app-shell', sidebarOpen && 'sidebar-open')}>
@@ -125,10 +125,11 @@ export function Shell() {
             <Route path="/page/:pageId" element={<PageView />} />
             <Route path="/kb" element={<KnowledgeView />} />
             <Route path="/assets" element={<AssetsView />} />
-            <Route path="/requests" element={<RegistrationRequestsView />} />
+            <Route path="/accounts" element={<AccountAdminView />} />
+            <Route path="/requests" element={<Navigate to="/accounts?tab=requests" replace />} />
+            <Route path="/invites" element={<Navigate to="/accounts?tab=invites" replace />} />
+            <Route path="/mailbox" element={<Navigate to="/accounts?tab=mailbox" replace />} />
             <Route path="/chat" element={<ChatView />} />
-            <Route path="/mailbox" element={<AdminMailboxView />} />
-            <Route path="/invites" element={<InviteCodesView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

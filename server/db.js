@@ -311,6 +311,13 @@ function migrate() {
     `);
   }
 
+  if (version < 14) {
+    db.exec(`
+      ALTER TABLE users ADD COLUMN note TEXT NOT NULL DEFAULT '';
+      PRAGMA user_version = 14;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -331,7 +338,26 @@ export function getUserByUsername(username) {
 }
 
 export function getUserById(id) {
-  return db.prepare('SELECT id, username, role, status, created_at FROM users WHERE id = ?').get(id) || null;
+  return db.prepare('SELECT id, username, role, status, note, created_at FROM users WHERE id = ?').get(id) || null;
+}
+
+export function listUsers() {
+  return db.prepare(`
+    SELECT id, username, role, status, note, created_at
+    FROM users
+    ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, created_at ASC
+  `).all();
+}
+
+export function updateUserNote(id, note) {
+  db.prepare('UPDATE users SET note = ? WHERE id = ?').run(String(note || '').trim().slice(0, 500), id);
+  return getUserById(id);
+}
+
+export function setUserStatus(id, status) {
+  const next = status === 'suspended' ? 'suspended' : 'active';
+  db.prepare('UPDATE users SET status = ? WHERE id = ?').run(next, id);
+  return getUserById(id);
 }
 
 export function createUser({ username, passwordHash, role = 'admin', status = 'active' }) {

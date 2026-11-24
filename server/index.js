@@ -54,6 +54,10 @@ import {
   deleteModule,
   deleteOtherSessions,
   deletePage,
+  deleteSessionsForUser,
+  listUsers,
+  updateUserNote,
+  setUserStatus,
   approveRegistrationRequest,
   createRegistrationRequest,
   countRegistrationsSince,
@@ -411,6 +415,27 @@ app.get('/api/admin/registrations', { preHandler: requireAuth }, async (req) => 
   const status = String(req.query?.status || 'pending');
   const requests = listRegistrationRequests(status === 'all' ? '' : status);
   return { requests };
+});
+
+app.get('/api/admin/users', { preHandler: requireAuth }, async () => ({ users: listUsers() }));
+
+app.patch('/api/admin/users/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const existing = getUserById(req.params.id);
+  if (!existing) return fail(reply, 404, 'NOT_FOUND', '账号不存在。');
+  const body = req.body || {};
+  let user = existing;
+  if (body.note !== undefined) {
+    user = updateUserNote(existing.id, String(body.note || ''));
+  }
+  if (body.status !== undefined) {
+    if (existing.id === req.user.id) {
+      return fail(reply, 400, 'SELF_STATUS', '不能停用当前登录的管理员账号。');
+    }
+    const status = body.status === 'suspended' ? 'suspended' : 'active';
+    user = setUserStatus(existing.id, status);
+    if (status === 'suspended') deleteSessionsForUser(existing.id);
+  }
+  return { user };
 });
 
 app.post('/api/admin/registrations/:id/approve', { preHandler: requireAuth }, async (req, reply) => {

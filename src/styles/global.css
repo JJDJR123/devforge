@@ -3607,3 +3607,41 @@ kbd {
 .mailbox-reply-form { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
 .mailbox-reply-form textarea { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; outline: 0; }
 .mailbox-reply-form > div { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Account administration */
+.accounts-view { width: min(100%, 1100px); margin: 0 auto; padding: 26px clamp(18px, 3vw, 40px) 64px; }
+.accounts-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--line); }
+.accounts-tab { padding: 9px 13px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.accounts-tab:hover { color: var(--text); }
+.accounts-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.accounts-panel { margin-top: 20px; }
+.accounts-panel > .requests-view { width: 100%; padding: 0; }
+.accounts-panel > .requests-view .assets-head { margin-top: 0; }
+.accounts-users-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.accounts-search { flex: 1; max-width: 380px; }
+.accounts-list { display: flex; flex-direction: column; gap: 8px; }
+.account-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.account-card.is-suspended { opacity: 0.68; }
+.account-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+.account-title { display: flex; align-items: flex-start; gap: 9px; }
+.account-avatar { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 auto; border-radius: 8px; background: rgba(255, 255, 255, 0.045); color: var(--muted); }
+.account-avatar.is-admin { color: var(--accent); background: var(--accent-soft); }
+.account-title > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.account-title strong { font-size: 12px; }
+.account-role { padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 7px; font-family: var(--font-mono); }
+.account-role.is-admin { color: var(--accent); border-color: var(--accent-line); }
+.account-status { font-size: 7px; font-family: var(--font-mono); color: var(--faint); }
+.account-status.is-active { color: var(--cyan); }
+.account-status.is-suspended { color: var(--danger); }
+.account-note { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.account-note > span { color: var(--faint); font-size: 8px; }
+.account-note input { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 10px; outline: 0; }
+.account-note input:focus { border-color: var(--accent-line); }
+.account-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.account-actions .btn { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .account-card { flex-direction: column; }
+  .account-actions { align-self: flex-end; }
+  .accounts-users-bar { align-items: stretch; flex-direction: column; }
+  .accounts-search { max-width: none; }
+}

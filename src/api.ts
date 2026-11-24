@@ -4,6 +4,7 @@ import type {
   AIConversation,
   AIMessage,
   AIStatus,
+  AdminUser,
   AssetPurpose,
   AssetsDeleteResult,
   AssetsResponse,
@@ -134,6 +135,14 @@ export const api = {
 
   registrations: (status = 'pending') =>
     request<{ requests: RegistrationRequest[] }>(`/api/admin/registrations?status=${encodeURIComponent(status)}`),
+
+  adminUsers: () => request<{ users: AdminUser[] }>('/api/admin/users'),
+
+  updateAdminUser: (id: string, patch: { note?: string; status?: 'active' | 'suspended' }) =>
+    request<{ user: AdminUser }>(`/api/admin/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: patch,
+    }),
 
   approveRegistration: (id: string) =>
     request<{ ok: true; user: User }>(`/api/admin/registrations/${encodeURIComponent(id)}/approve`, {
