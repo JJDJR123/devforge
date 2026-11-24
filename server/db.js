@@ -263,6 +263,45 @@ function migrate() {
     `);
   }
 
+  if (version < 12) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'reader',
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_created ON chat_messages(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS suggestions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'unread',
+        created_at TEXT NOT NULL,
+        read_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_suggestions_status ON suggestions(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        created_by TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        used_at TEXT,
+        used_by TEXT,
+        hidden INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_invite_code ON invite_codes(code);
+      CREATE INDEX IF NOT EXISTS idx_invite_visible ON invite_codes(hidden, created_at DESC);
+
+      PRAGMA user_version = 12;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -413,6 +452,184 @@ export function rejectRegistrationRequest(id) {
     "UPDATE registration_requests SET status = 'rejected', reviewed_at = ? WHERE id = ? AND status = 'pending'",
   ).run(now(), id);
   return result.changes > 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* chat + suggestions                                                  */
+/* ------------------------------------------------------------------ */
+
+function mapChatRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    role: row.role,
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+export function listChatMessages(limit = 100) {
+  const rows = db.prepare(
+    'SELECT * FROM chat_messages ORDER BY created_at DESC LIMIT ?',
+  ).all(Math.min(Math.max(Number(limit) || 100, 1), 300));
+  return rows.reverse().map(mapChatRow);
+}
+
+export function createChatMessage({ userId, username, role, body }) {
+  const id = uid();
+  db.prepare(
+    'INSERT INTO chat_messages (id, user_id, username, role, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(id, userId, username, role, body, now());
+  return mapChatRow(db.prepare('SELECT * FROM chat_messages WHERE id = ?').get(id));
+}
+
+function mapSuggestionRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    body: row.body,
+    status: row.status,
+    createdAt: row.created_at,
+    readAt: row.read_at || null,
+  };
+}
+
+export function createSuggestion({ userId, username, body }) {
+  const id = uid();
+  db.prepare(
+    'INSERT INTO suggestions (id, user_id, username, body, status, created_at) VALUES (?, ?, ?, ?, \'unread\', ?)',
+  ).run(id, userId, username, body, now());
+  return mapSuggestionRow(db.prepare('SELECT * FROM suggestions WHERE id = ?').get(id));
+}
+
+export function listSuggestions({ userId = '', status = '', limit = 100 } = {}) {
+  const where = [];
+  const params = [];
+  if (userId) { where.push('user_id = ?'); params.push(userId); }
+  if (status) { where.push('status = ?'); params.push(status); }
+  params.push(Math.min(Math.max(Number(limit) || 100, 1), 300));
+  return db.prepare(`
+    SELECT * FROM suggestions
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY created_at DESC LIMIT ?
+  `).all(...params).map(mapSuggestionRow);
+}
+
+export function markSuggestionRead(id) {
+  const result = db.prepare(
+    "UPDATE suggestions SET status = 'read', read_at = ? WHERE id = ? AND status = 'unread'",
+  ).run(now(), id);
+  return result.changes > 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* invite codes                                                        */
+/* ------------------------------------------------------------------ */
+
+const INVITE_VISIBLE_LIMIT = 50;
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function newInviteCode() {
+  let value = '';
+  for (let i = 0; i < 8; i += 1) {
+    value += INVITE_ALPHABET[crypto.randomInt(0, INVITE_ALPHABET.length)];
+    if (i === 3) value += '-';
+  }
+  return `DF-${value}`;
+}
+
+function trimInviteCodes() {
+  let visible = db.prepare('SELECT COUNT(*) AS n FROM invite_codes WHERE hidden = 0').get().n;
+  if (visible <= INVITE_VISIBLE_LIMIT) return;
+  // 先隐藏最近使用过的邀请码（按用户要求：超过 50 条时优先隐藏最近的已用码）。
+  const used = db.prepare(`
+    SELECT id FROM invite_codes
+    WHERE hidden = 0 AND used_at IS NOT NULL
+    ORDER BY used_at DESC
+  `).all();
+  const hide = db.prepare('UPDATE invite_codes SET hidden = 1 WHERE id = ?');
+  for (const row of used) {
+    if (visible <= INVITE_VISIBLE_LIMIT) break;
+    hide.run(row.id);
+    visible -= 1;
+  }
+  // 如果仍未使用码也超过上限，删除最旧的未使用码，避免留下不可用又看不见的码。
+  if (visible > INVITE_VISIBLE_LIMIT) {
+    const unused = db.prepare(`
+      SELECT id FROM invite_codes
+      WHERE hidden = 0 AND used_at IS NULL
+      ORDER BY created_at ASC
+    `).all();
+    const remove = db.prepare('DELETE FROM invite_codes WHERE id = ?');
+    for (const row of unused) {
+      if (visible <= INVITE_VISIBLE_LIMIT) break;
+      remove.run(row.id);
+      visible -= 1;
+    }
+  }
+}
+
+function mapInviteRow(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    createdAt: row.created_at,
+    usedAt: row.used_at || null,
+    usedBy: row.used_by || null,
+    used: Boolean(row.used_at),
+  };
+}
+
+export function listInviteCodes() {
+  return db.prepare(
+    'SELECT * FROM invite_codes WHERE hidden = 0 ORDER BY created_at DESC',
+  ).all().map(mapInviteRow);
+}
+
+export function createInviteCodes(count = 10, createdBy = '') {
+  const amount = Math.min(50, Math.max(1, Number(count) || 10));
+  db.exec('BEGIN');
+  try {
+    const insert = db.prepare(
+      'INSERT INTO invite_codes (id, code, created_by, created_at) VALUES (?, ?, ?, ?)',
+    );
+    for (let i = 0; i < amount; i += 1) {
+      let code;
+      do { code = newInviteCode(); } while (db.prepare('SELECT 1 FROM invite_codes WHERE code = ?').get(code));
+      insert.run(uid(), code, createdBy, now());
+    }
+    trimInviteCodes();
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    throw error;
+  }
+  return listInviteCodes();
+}
+
+export function consumeInviteCode({ code, username, passwordHash }) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return { error: 'INVALID_CODE' };
+  const invite = db.prepare(
+    'SELECT * FROM invite_codes WHERE code = ? AND hidden = 0 AND used_at IS NULL',
+  ).get(normalized);
+  if (!invite) return { error: 'INVALID_CODE' };
+  db.exec('BEGIN');
+  try {
+    const user = createUser({ username, passwordHash, role: 'reader', status: 'active' });
+    db.prepare(
+      'UPDATE invite_codes SET used_at = ?, used_by = ? WHERE id = ?',
+    ).run(now(), username, invite.id);
+    trimInviteCodes();
+    db.exec('COMMIT');
+    return { user };
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    if (String(error?.code || '').includes('CONSTRAINT')) return { error: 'USERNAME_TAKEN' };
+    throw error;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1554,7 +1771,7 @@ export function deleteKbDoc(id) {
 }
 
 export function listMemberKbDocs({ q = '', kind = '', limit = 200 } = {}) {
-  const where = ["status = 'published'", "visibility = 'members'"];
+  const where = ["status = 'published'"];
   const params = [];
   if (kind) { where.push('kind = ?'); params.push(normalizeKind(kind)); }
   if (q) { where.push('search_text LIKE ?'); params.push(`%${q.toLowerCase()}%`); }
@@ -1566,7 +1783,7 @@ export function listMemberKbDocs({ q = '', kind = '', limit = 200 } = {}) {
 
 export function getMemberKbDoc(id) {
   const row = db.prepare(
-    "SELECT * FROM kb_docs WHERE id = ? AND status = 'published' AND visibility = 'members'",
+    "SELECT * FROM kb_docs WHERE id = ? AND status = 'published'",
   ).get(id);
   return mapKbRow(row);
 }

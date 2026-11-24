@@ -38,6 +38,34 @@ export type MemberAsset = {
   createdAt: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  userId: string;
+  username: string;
+  role: 'admin' | 'reader';
+  body: string;
+  createdAt: string;
+};
+
+export type Suggestion = {
+  id: string;
+  userId: string;
+  username: string;
+  body: string;
+  status: 'unread' | 'read';
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type InviteCode = {
+  id: string;
+  code: string;
+  createdAt: string;
+  usedAt: string | null;
+  usedBy: string | null;
+  used: boolean;
+};
+
 export type AIStatus = {
   configured: boolean;
   model: string;

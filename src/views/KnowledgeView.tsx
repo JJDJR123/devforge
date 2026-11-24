@@ -42,7 +42,6 @@ type Draft = {
   id: string | null;
   title: string;
   kind: KbKind;
-  visibility: 'admin' | 'members';
   summary: string;
   bodyMd: string;
   tool: string;
@@ -54,7 +53,6 @@ const EMPTY: Draft = {
   id: null,
   title: '',
   kind: 'recipe',
-  visibility: 'admin',
   summary: '',
   bodyMd: '',
   tool: '',
@@ -67,7 +65,6 @@ function toDraft(doc: KbDoc): Draft {
     id: doc.id,
     title: doc.title,
     kind: doc.kind,
-    visibility: doc.visibility || 'admin',
     summary: doc.summary,
     bodyMd: doc.bodyMd,
     tool: doc.tool,
@@ -148,7 +145,6 @@ export function KnowledgeView() {
       const payload = {
         title: draft.title.trim(),
         kind: draft.kind,
-        visibility: draft.visibility,
         summary: draft.summary,
         bodyMd: draft.bodyMd,
         tool: draft.tool,
@@ -348,14 +344,6 @@ export function KnowledgeView() {
                   {(Object.keys(KIND_LABEL) as KbKind[]).map((kind) => (
                     <option key={kind} value={kind}>{KIND_LABEL[kind]}</option>
                   ))}
-                </select>
-                <select
-                  value={draft.visibility}
-                  onChange={(event) => setDraft({ ...draft, visibility: event.target.value as 'admin' | 'members' })}
-                  title="谁可以看到这条知识"
-                >
-                  <option value="admin">仅管理员</option>
-                  <option value="members">成员可见</option>
                 </select>
               </div>
               <p className="kb-hint">{KIND_HINT[draft.kind]}</p>

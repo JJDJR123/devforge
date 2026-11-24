@@ -12,6 +12,9 @@ import type {
   Breadcrumb,
   MemberAsset,
   MemberKbDoc,
+  ChatMessage,
+  Suggestion,
+  InviteCode,
   Module,
   Page,
   PageLinks,
@@ -99,8 +102,29 @@ export const api = {
   login: (input: { username: string; password: string }) =>
     request<{ user: User }>('/api/auth/login', { method: 'POST', body: input }),
 
-  register: (input: { username: string; password: string; reason?: string; contact?: string; website?: string }) =>
-    request<{ ok: true; message: string }>('/api/register', { method: 'POST', body: input }),
+  register: (input: { username: string; password: string; reason?: string; contact?: string; website?: string; inviteCode?: string }) =>
+    request<{ ok: true; message: string; activated?: boolean; user?: User }>('/api/register', { method: 'POST', body: input }),
+
+  chatMessages: () => request<{ messages: ChatMessage[] }>('/api/chat/messages'),
+
+  sendChatMessage: (body: string) =>
+    request<{ message: ChatMessage }>('/api/chat/messages', { method: 'POST', body: { body } }),
+
+  mailboxMine: () => request<{ messages: Suggestion[] }>('/api/mailbox/mine'),
+
+  sendSuggestion: (body: string) =>
+    request<{ message: Suggestion }>('/api/mailbox', { method: 'POST', body: { body } }),
+
+  adminMailbox: (status = '') =>
+    request<{ messages: Suggestion[] }>(`/api/admin/mailbox?status=${encodeURIComponent(status)}`),
+
+  markSuggestionRead: (id: string) =>
+    request<{ ok: true }>(`/api/admin/mailbox/${encodeURIComponent(id)}/read`, { method: 'POST', body: {} }),
+
+  invites: () => request<{ codes: InviteCode[] }>('/api/admin/invites'),
+
+  generateInvites: (count = 10) =>
+    request<{ codes: InviteCode[] }>('/api/admin/invites', { method: 'POST', body: { count } }),
 
   registrations: (status = 'pending') =>
     request<{ requests: RegistrationRequest[] }>(`/api/admin/registrations?status=${encodeURIComponent(status)}`),

@@ -57,6 +57,14 @@ import {
   approveRegistrationRequest,
   createRegistrationRequest,
   countRegistrationsSince,
+  createChatMessage,
+  createSuggestion,
+  listChatMessages,
+  listSuggestions,
+  markSuggestionRead,
+  createInviteCodes,
+  listInviteCodes,
+  consumeInviteCode,
   getRegistrationRequest,
   listRegistrationRequests,
   pendingRegistrationExists,
@@ -354,6 +362,28 @@ app.post('/api/register', async (req, reply) => {
   if (!password.ok) return fail(reply, 400, 'INVALID_PASSWORD', password.message);
   const reason = String(body.reason || '').trim().slice(0, 500);
   const contact = String(body.contact || '').trim().slice(0, 200);
+  const inviteCode = String(body.inviteCode || '').trim();
+  if (inviteCode) {
+    const consumed = consumeInviteCode({
+      code: inviteCode,
+      username: username.value,
+      passwordHash: hashPassword(password.value),
+    });
+    if (consumed.error === 'INVALID_CODE') {
+      return fail(reply, 400, 'INVALID_INVITE', '邀请码无效、已使用或已隐藏。');
+    }
+    if (consumed.error === 'USERNAME_TAKEN') {
+      return fail(reply, 409, 'USERNAME_TAKEN', '这个用户名已经被使用了。');
+    }
+    clearLoginFailures(req);
+    return {
+      ok: true,
+      activated: true,
+      message: '邀请码已使用，账号已激活，可以直接登录。',
+      user: consumed.user,
+    };
+  }
+
   if (getUserByUsername(username.value) || pendingRegistrationExists(username.value)) {
     return fail(reply, 409, 'USERNAME_UNAVAILABLE', '这个用户名已经有账号或正在审批，请换一个。');
   }
@@ -394,6 +424,90 @@ app.post('/api/admin/registrations/:id/approve', { preHandler: requireAuth }, as
 app.post('/api/admin/registrations/:id/reject', { preHandler: requireAuth }, async (req, reply) => {
   const ok = rejectRegistrationRequest(req.params.id);
   if (!ok) return fail(reply, 404, 'NOT_FOUND', '申请不存在或已经处理过了。');
+  return { ok: true };
+});
+
+app.get('/api/admin/invites', { preHandler: requireAuth }, async () => ({ codes: listInviteCodes() }));
+
+app.post('/api/admin/invites', { preHandler: requireAuth }, async (req) => {
+  const count = Math.min(50, Math.max(1, Number(req.body?.count) || 10));
+  return { codes: createInviteCodes(count, req.user.username) };
+});
+
+/* ------------------------------------------------------------------ */
+/* chat + mailbox                                                      */
+/* ------------------------------------------------------------------ */
+
+const chatRate = new Map();
+const suggestionRate = new Map();
+
+function rateAllowed(map, key, max, windowMs) {
+  const now = Date.now();
+  const current = map.get(key);
+  if (!current || current.resetAt <= now) {
+    map.set(key, { count: 0, resetAt: now + windowMs });
+    return true;
+  }
+  return current.count < max;
+}
+
+function recordRate(map, key) {
+  const current = map.get(key);
+  if (current) current.count += 1;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const map of [chatRate, suggestionRate]) {
+    for (const [key, value] of map) if (value.resetAt <= now) map.delete(key);
+  }
+}, 60_000).unref();
+
+app.get('/api/chat/messages', { preHandler: requireUser }, async () => ({
+  messages: listChatMessages(200),
+}));
+
+app.post('/api/chat/messages', { preHandler: requireUser }, async (req, reply) => {
+  if (!rateAllowed(chatRate, req.user.id, 10, 60_000)) {
+    return fail(reply, 429, 'RATE_LIMITED', '发言太快，请稍后再试。');
+  }
+  const body = String(req.body?.body || '').trim();
+  if (!body) return fail(reply, 400, 'EMPTY_MESSAGE', '消息不能为空。');
+  if (body.length > 1000) return fail(reply, 400, 'MESSAGE_TOO_LONG', '消息不能超过 1000 字。');
+  recordRate(chatRate, req.user.id);
+  const message = createChatMessage({
+    userId: req.user.id,
+    username: req.user.username,
+    role: req.user.role,
+    body,
+  });
+  return { message };
+});
+
+app.get('/api/mailbox/mine', { preHandler: requireUser }, async (req) => ({
+  messages: listSuggestions({ userId: req.user.id, limit: 100 }),
+}));
+
+app.post('/api/mailbox', { preHandler: requireUser }, async (req, reply) => {
+  if (!rateAllowed(suggestionRate, req.user.id, 5, 60 * 60 * 1000)) {
+    return fail(reply, 429, 'RATE_LIMITED', '发送太频繁，请稍后再试。');
+  }
+  const body = String(req.body?.body || '').trim();
+  if (!body) return fail(reply, 400, 'EMPTY_MESSAGE', '建议内容不能为空。');
+  if (body.length > 3000) return fail(reply, 400, 'MESSAGE_TOO_LONG', '建议不能超过 3000 字。');
+  recordRate(suggestionRate, req.user.id);
+  return {
+    message: createSuggestion({ userId: req.user.id, username: req.user.username, body }),
+  };
+});
+
+app.get('/api/admin/mailbox', { preHandler: requireAuth }, async (req) => ({
+  messages: listSuggestions({ status: String(req.query?.status || '') }),
+}));
+
+app.post('/api/admin/mailbox/:id/read', { preHandler: requireAuth }, async (req, reply) => {
+  const ok = markSuggestionRead(req.params.id);
+  if (!ok) return fail(reply, 404, 'NOT_FOUND', '消息不存在或已经读过。');
   return { ok: true };
 });
 

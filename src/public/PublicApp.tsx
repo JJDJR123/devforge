@@ -9,8 +9,10 @@ import {
   FileText,
   Globe2,
   Images,
+  Inbox,
   LogOut,
   Menu,
+  MessageCircle,
   RefreshCw,
   Search,
   X,
@@ -28,6 +30,8 @@ import { PublicModule } from './PublicModule';
 import { PublicPage } from './PublicPage';
 import { MemberKbView } from '../views/MemberKbView';
 import { MemberAssetsView } from '../views/MemberAssetsView';
+import { ChatView } from '../views/ChatView';
+import { MailboxView } from '../views/MailboxView';
 
 const COLLAPSE_KEY = 'devforge.public.collapsed';
 
@@ -132,7 +136,11 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
         ? '知识库'
         : location.pathname.startsWith('/assets')
           ? '素材库'
-          : '总览';
+          : location.pathname.startsWith('/chat')
+            ? '聊天室'
+            : location.pathname.startsWith('/mailbox')
+              ? '信箱'
+              : '总览';
 
   async function handleLogout() {
     await logout();
@@ -188,6 +196,12 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
                 <button type="button" className="public-member-link" onClick={() => navigate('/assets')}>
                   <Images size={13} /> 素材库
                 </button>
+                <button type="button" className="public-member-link" onClick={() => navigate('/chat')}>
+                  <MessageCircle size={13} /> 聊天室
+                </button>
+                <button type="button" className="public-member-link" onClick={() => navigate('/mailbox')}>
+                  <Inbox size={13} /> 信箱
+                </button>
                 <span className="public-topbar-badge"><Eye size={12} /> 成员 · 只读</span>
                 <button type="button" className="public-member-link" onClick={() => { void handleLogout(); }}>
                   <LogOut size={13} /> 退出
@@ -206,6 +220,8 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             <Route path="/page/:pageId" element={<PublicPage data={data} />} />
             {member ? <Route path="/kb" element={<MemberKbView />} /> : null}
             {member ? <Route path="/assets" element={<MemberAssetsView />} /> : null}
+            {member ? <Route path="/chat" element={<ChatView member />} /> : null}
+            {member ? <Route path="/mailbox" element={<MailboxView />} /> : null}
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="*" element={<PublicMissing />} />
           </Routes>

@@ -11,10 +11,12 @@ export function ApplyScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [reason, setReason] = useState('');
   const [contact, setContact] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [website, setWebsite] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [activated, setActivated] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -39,8 +41,10 @@ export function ApplyScreen() {
         password,
         reason: reason.trim(),
         contact: contact.trim(),
+        inviteCode: inviteCode.trim(),
         website,
       });
+      setActivated(Boolean(inviteCode.trim()));
       setDone(true);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
@@ -63,8 +67,8 @@ export function ApplyScreen() {
           {done ? (
             <div className="apply-success">
               <Check size={22} />
-              <strong>申请已提交</strong>
-              <p>管理员审批通过后即可登录。如果没有通过，管理员会在有联系方式时告知你。</p>
+              <strong>{activated ? '账号已激活' : '申请已提交'}</strong>
+              <p>{activated ? '邀请码有效，账号已创建。现在可以直接用刚才的用户名和密码登录。' : '管理员审批通过后即可登录。如果没有通过，管理员会在有联系方式时告知你。'}</p>
               <Link className="btn btn-primary" to="/admin">返回登录</Link>
             </div>
           ) : (
@@ -108,6 +112,16 @@ export function ApplyScreen() {
                   placeholder="简单说明你想看什么内容（可选）"
                   rows={3}
                   maxLength={500}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">邀请码（可选）</span>
+                <input
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value)}
+                  placeholder="有邀请码可以直接激活"
+                  autoComplete="off"
+                  spellCheck={false}
                 />
               </label>
               <label className="field">
