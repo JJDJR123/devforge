@@ -23,15 +23,18 @@
 1. **表格单元格归一化**
    - 字符串单元格恢复成文本
    - PowerShell 风格字符串 `@{type=text; text=...}` 提取真实文字
-   - 图片等非法 inline item 降级为 `[图片]`
+   - **保护 BlockNote 的 `tableCell` 对象**（`{ type: 'tableCell', content, props }`），不再把整个单元格误判成无 text 的图片对象
+   - `tableCell.content` 里的文字/链接保留；图片对象降级为可点击的 `[图片]` 链接
    - `wikiLinksToMarks()` 在交给 BlockNote 前清洗
 
 2. **文本提取防护**
    - `extractPlainText()` 不再假设 `row.cells` / `cell` 一定是数组
+   - `extractPlainText()` / `blocksToMarkdown()` 支持读取 `tableCell.content`
    - `blocksToMarkdown()` 表格导出一并防护
 
 3. **服务端搜索文本提取防护**
    - `server/db.js` 遇到异常表格单元格不会再 500
+   - 表格单元格对象会读取 `cell.content`
 
 4. **保存流程防护**
    - `extractPlainText()` 移入 `try`
@@ -65,6 +68,7 @@
 
 - 多标签页同时编辑仍是最后写入覆盖，没有版本锁。
 - 单页 5MB 上限；超大文档会被拒绝。
-- 图片放进表格单元格不会保留图片，会降级成 `[图片]`。
+- 图片放进表格单元格不会保留为图片，会降级成可点击的 `[图片]` 链接。这是 BlockNote 表格单元格只支持 inline content 的限制。
+- 已经被保存成 `[图片]` 的旧表格不能靠本次修复自动还原，需要从旧备份/本地草稿恢复，或重新填写。
 - 保存失败时，已经上传的图片可能成为孤立附件。
 - 部署后旧标签页可能加载旧资源，出现异常先硬刷新。

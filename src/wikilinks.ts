@@ -74,13 +74,34 @@ function normalizeInlineItems(items: unknown[]): unknown[] {
     }
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
-    if (record.type === 'text' || record.type === 'link') {
+    if (record.type === 'text') {
+      out.push(record);
+      continue;
+    }
+    if (record.type === 'link') {
       out.push(record);
       continue;
     }
     if (typeof record.text === 'string') {
       out.push({ type: 'text', text: record.text, styles: record.styles || {} });
       continue;
+    }
+    // BlockNote table cells only support inline content. A pasted image can
+    // arrive as a block-like object; keep it clickable instead of replacing
+    // the whole cell with a placeholder.
+    const props = record.props && typeof record.props === 'object'
+      ? record.props as Record<string, unknown>
+      : {};
+    if (record.type === 'image' || typeof props.url === 'string') {
+      const url = typeof props.url === 'string' ? props.url : '';
+      if (url) {
+        out.push({
+          type: 'link',
+          href: url,
+          content: [{ type: 'text', text: '[图片]', styles: {} }],
+        });
+        continue;
+      }
     }
     out.push({ type: 'text', text: '[图片]', styles: {} });
   }
@@ -91,7 +112,7 @@ function normalizeTableCell(
   cell: unknown,
   pages: PageMeta[],
   modules: Module[],
-): unknown[] {
+): unknown {
   if (Array.isArray(cell)) {
     return normalizeInlineItems(convertContent(cell, pages, modules) as unknown[]);
   }
@@ -104,8 +125,24 @@ function normalizeTableCell(
   }
   if (cell && typeof cell === 'object') {
     const record = cell as Record<string, unknown>;
+    // Current BlockNote table cells are objects: { type: 'tableCell',
+    // content: InlineContent[], props: {...} }. The old normalizer treated
+    // these objects as malformed inline content and replaced the cell with
+    // "[图片]", destroying text/images on page load.
+    if (record.type === 'tableCell' && Array.isArray(record.content)) {
+      return {
+        ...record,
+        content: normalizeInlineItems(convertContent(record.content, pages, modules) as unknown[]),
+      };
+    }
     if (record.type === 'text' || record.type === 'link') return [record];
     if (typeof record.text === 'string') return [{ type: 'text', text: record.text, styles: {} }];
+    if (Array.isArray(record.content)) {
+      return {
+        ...record,
+        content: normalizeInlineItems(convertContent(record.content, pages, modules) as unknown[]),
+      };
+    }
   }
   return [{ type: 'text', text: '[图片]', styles: {} }];
 }

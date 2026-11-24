@@ -1895,6 +1895,12 @@ function extractSearchText(blocks) {
               out.push(cell);
               continue;
             }
+            if (cell && typeof cell === 'object' && Array.isArray(cell.content)) {
+              for (const item of cell.content) {
+                if (item && typeof item === 'object' && typeof item.text === 'string') out.push(item.text);
+              }
+              continue;
+            }
             if (!Array.isArray(cell)) {
               if (cell && typeof cell === 'object' && typeof cell.text === 'string') out.push(cell.text);
               continue;

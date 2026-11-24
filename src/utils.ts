@@ -112,7 +112,13 @@ export function extractPlainText(blocks: unknown): string {
         if (table.type === 'tableContent' && Array.isArray(table.rows)) {
           for (const row of table.rows) {
             const cells = Array.isArray(row?.cells) ? row.cells : [];
-            for (const cell of cells) pushInline(cell);
+            for (const cell of cells) {
+              if (cell && typeof cell === 'object' && Array.isArray((cell as { content?: unknown }).content)) {
+                pushInline((cell as { content: unknown }).content);
+              } else {
+                pushInline(cell);
+              }
+            }
           }
         }
       } else if (typeof block.content === 'string') {
@@ -224,7 +230,9 @@ export function blocksToMarkdown(blocks: unknown): string {
                   ? inlineMarkdown(cell as InlineItem[])
                   : typeof cell === 'string'
                     ? cell
-                    : '';
+                    : cell && typeof cell === 'object' && Array.isArray((cell as { content?: unknown }).content)
+                      ? inlineMarkdown((cell as { content: InlineItem[] }).content)
+                      : '';
                 return inline.replace(/\|/g, '\\|');
               });
             });
