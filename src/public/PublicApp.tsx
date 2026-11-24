@@ -37,6 +37,7 @@ import { MailboxView } from '../views/MailboxView';
 import { FriendsView } from '../views/FriendsView';
 import { UpdateModal } from '../components/UpdateModal';
 import { hasUnseenUpdates, markUpdatesSeen } from '../updates';
+import { FEATURES } from '../features';
 
 const COLLAPSE_KEY = 'devforge.public.collapsed';
 
@@ -215,7 +216,8 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             <Route path="/module/:moduleId" element={<PublicModule data={data} />} />
             <Route path="/page/:pageId" element={<PublicPage data={data} />} />
             {member ? <Route path="/kb" element={<MemberKbView />} /> : null}
-            {member ? <Route path="/assets" element={<MemberAssetsView />} /> : null}
+            {member && FEATURES.memberAssets ? <Route path="/assets" element={<MemberAssetsView />} /> : null}
+            {member && !FEATURES.memberAssets ? <Route path="/assets" element={<Navigate to="/" replace />} /> : null}
             {member ? <Route path="/chat" element={<ChatView member />} /> : null}
             {member ? <Route path="/mailbox" element={<MailboxView />} /> : null}
             {member ? <Route path="/friends" element={<FriendsView member />} /> : null}
@@ -403,10 +405,12 @@ function PublicSidebar({
               <BookOpen size={16} />
               <span>成员知识库</span>
             </button>
-            <button type="button" className={cn('nav-item', location.pathname.startsWith('/assets') && 'is-active')} onClick={() => go('/assets')}>
-              <Images size={16} />
-              <span>成员素材库</span>
-            </button>
+            {FEATURES.memberAssets ? (
+              <button type="button" className={cn('nav-item', location.pathname.startsWith('/assets') && 'is-active')} onClick={() => go('/assets')}>
+                <Images size={16} />
+                <span>成员素材库</span>
+              </button>
+            ) : null}
             <button type="button" className={cn('nav-item', location.pathname.startsWith('/chat') && 'is-active')} onClick={() => go('/chat')}>
               <MessageCircle size={16} />
               <span>聊天室</span>
