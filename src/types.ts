@@ -54,6 +54,7 @@ export type ChatMessage = {
   role: 'admin' | 'reader';
   body: string;
   createdAt: string;
+  note?: string;
 };
 
 export type Suggestion = {
@@ -76,6 +77,65 @@ export type InviteCode = {
   usedAt: string | null;
   usedBy: string | null;
   used: boolean;
+};
+
+export type FriendUser = {
+  id: string;
+  username: string;
+  role: 'admin' | 'reader';
+  status: 'active' | 'suspended';
+  note: string;
+};
+
+export type FriendItem = {
+  friendshipId: string;
+  user: FriendUser;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FriendData = {
+  friends: FriendItem[];
+  incoming: FriendItem[];
+  outgoing: FriendItem[];
+  blocked: FriendItem[];
+};
+
+export type DmAttachment = {
+  id: string;
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+  cleared: boolean;
+};
+
+export type DmMessage = {
+  id: string;
+  conversationKey: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  attachment: DmAttachment | null;
+  attachmentCleared: boolean;
+};
+
+export type DmConversation = {
+  key: string;
+  user: FriendUser;
+  lastMessage: string;
+  lastAt: string;
+  unread: number;
+};
+
+export type AdminDmConversation = {
+  key: string;
+  users: FriendUser[];
+  lastMessage: string;
+  lastAt: string;
 };
 
 export type AIStatus = {

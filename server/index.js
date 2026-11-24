@@ -70,6 +70,23 @@ import {
   listSuggestions,
   markSuggestionRead,
   replyToSuggestion,
+  friendPairKey,
+  findFriendshipBetween,
+  listFriendData,
+  createFriendRequest,
+  answerFriendRequest,
+  removeFriend,
+  blockFriend,
+  unblockFriend,
+  setFriendNote,
+  searchUsers,
+  createDmMessage,
+  listDmMessages,
+  listDmConversations,
+  listAdminDmConversations,
+  listAdminDmMessages,
+  listDmAssetsBefore,
+  markDmAttachmentCleared,
   createInviteCodes,
   listInviteCodes,
   consumeInviteCode,
@@ -525,6 +542,7 @@ app.post('/api/admin/invites', { preHandler: requireAuth }, async (req) => {
 
 const chatRate = new Map();
 const suggestionRate = new Map();
+const dmRate = new Map();
 
 function rateAllowed(map, key, max, windowMs) {
   const now = Date.now();
@@ -543,14 +561,21 @@ function recordRate(map, key) {
 
 setInterval(() => {
   const now = Date.now();
-  for (const map of [chatRate, suggestionRate]) {
+  for (const map of [chatRate, suggestionRate, dmRate]) {
     for (const [key, value] of map) if (value.resetAt <= now) map.delete(key);
   }
 }, 60_000).unref();
 
-app.get('/api/chat/messages', { preHandler: requireUser }, async () => ({
-  messages: listChatMessages(200),
-}));
+app.get('/api/chat/messages', { preHandler: requireUser }, async (req) => {
+  const messages = listChatMessages(200);
+  if (req.user.role === 'admin') {
+    const notes = new Map(
+      db.prepare("SELECT id, note FROM users WHERE note <> ''").all().map((row) => [row.id, row.note]),
+    );
+    for (const message of messages) message.note = notes.get(message.userId) || '';
+  }
+  return { messages };
+});
 
 app.post('/api/chat/messages', { preHandler: requireUser }, async (req, reply) => {
   if (!rateAllowed(chatRate, req.user.id, 10, 60_000)) {
@@ -604,6 +629,213 @@ app.post('/api/admin/mailbox/:id/reply', { preHandler: requireAuth }, async (req
   if (!message) return fail(reply, 404, 'NOT_FOUND', '消息不存在。');
   return { message };
 });
+
+/* ------------------------------------------------------------------ */
+/* friends + direct messages                                           */
+/* ------------------------------------------------------------------ */
+
+function friendTarget(value) {
+  const target = getUserById(String(value || ''));
+  return target && target.status === 'active' ? target : null;
+}
+
+app.get('/api/friends', { preHandler: requireUser }, async (req) => listFriendData(req.user.id));
+
+app.get('/api/friends/search', { preHandler: requireUser }, async (req) => ({
+  users: searchUsers(req.user.id, String(req.query?.q || '')),
+}));
+
+app.post('/api/friends/requests', { preHandler: requireUser }, async (req, reply) => {
+  const target = friendTarget(req.body?.userId);
+  if (!target) return fail(reply, 404, 'NOT_FOUND', '找不到这个成员。');
+  if (target.id === req.user.id) return fail(reply, 400, 'SELF', '不能加自己为好友。');
+  const result = createFriendRequest(req.user.id, target.id);
+  if (result.error === 'ALREADY_FRIENDS') return fail(reply, 409, 'ALREADY_FRIENDS', '你们已经是好友了。');
+  if (result.error === 'BLOCKED') return fail(reply, 403, 'BLOCKED', '当前关系已被拉黑。');
+  if (result.error === 'ALREADY_PENDING') return fail(reply, 409, 'ALREADY_PENDING', '已经发过好友申请了。');
+  return { friendship: result.friendship, autoAccepted: Boolean(result.autoAccepted) };
+});
+
+app.post('/api/friends/requests/:id/accept', { preHandler: requireUser }, async (req, reply) => {
+  const row = answerFriendRequest(req.params.id, req.user.id, true);
+  if (!row) return fail(reply, 404, 'NOT_FOUND', '申请不存在或已经处理过了。');
+  return { ok: true };
+});
+
+app.post('/api/friends/requests/:id/reject', { preHandler: requireUser }, async (req, reply) => {
+  const row = answerFriendRequest(req.params.id, req.user.id, false);
+  if (!row) return fail(reply, 404, 'NOT_FOUND', '申请不存在或已经处理过了。');
+  return { ok: true };
+});
+
+app.delete('/api/friends/:userId', { preHandler: requireUser }, async (req, reply) => {
+  if (!removeFriend(req.user.id, req.params.userId)) {
+    return fail(reply, 404, 'NOT_FOUND', '好友关系不存在。');
+  }
+  return { ok: true };
+});
+
+app.post('/api/friends/:userId/block', { preHandler: requireUser }, async (req, reply) => {
+  const target = friendTarget(req.params.userId);
+  if (!target || target.id === req.user.id) return fail(reply, 404, 'NOT_FOUND', '找不到这个成员。');
+  blockFriend(req.user.id, target.id);
+  return { ok: true };
+});
+
+app.post('/api/friends/:userId/unblock', { preHandler: requireUser }, async (req, reply) => {
+  if (!unblockFriend(req.user.id, req.params.userId)) {
+    return fail(reply, 404, 'NOT_FOUND', '没有可解除的拉黑关系。');
+  }
+  return { ok: true };
+});
+
+app.patch('/api/friends/:userId/note', { preHandler: requireUser }, async (req, reply) => {
+  const friendship = findFriendshipBetween(req.user.id, req.params.userId);
+  if (!friendship || friendship.status !== 'accepted') {
+    return fail(reply, 403, 'NOT_FRIENDS', '只有好友可以设置备注。');
+  }
+  const note = setFriendNote(req.user.id, req.params.userId, String(req.body?.note || ''));
+  return { note };
+});
+
+app.get('/api/dm/conversations', { preHandler: requireUser }, async (req) => ({
+  conversations: listDmConversations(req.user.id),
+}));
+
+app.get('/api/dm/conversations/:userId', { preHandler: requireUser }, async (req, reply) => {
+  const other = friendTarget(req.params.userId);
+  if (!other) return fail(reply, 404, 'NOT_FOUND', '找不到这个成员。');
+  const friendship = findFriendshipBetween(req.user.id, other.id);
+  if (!friendship || friendship.status !== 'accepted') {
+    return fail(reply, 403, 'NOT_FRIENDS', '只有好友之间可以查看私聊。');
+  }
+  return {
+    user: { id: other.id, username: other.username, role: other.role },
+    messages: listDmMessages(req.user.id, other.id),
+  };
+});
+
+app.post('/api/dm/messages', { preHandler: requireUser }, async (req, reply) => {
+  if (!rateAllowed(dmRate, req.user.id, 20, 60_000)) {
+    return fail(reply, 429, 'RATE_LIMITED', '发送太快，请稍后再试。');
+  }
+  const to = friendTarget(req.body?.toUserId);
+  if (!to) return fail(reply, 404, 'NOT_FOUND', '找不到这个成员。');
+  const friendship = findFriendshipBetween(req.user.id, to.id);
+  if (!friendship || friendship.status !== 'accepted') {
+    return fail(reply, 403, 'NOT_FRIENDS', '只有好友之间可以私聊。');
+  }
+  const body = String(req.body?.body || '').trim();
+  let attachment = null;
+  if (req.body?.attachmentId) {
+    const asset = getAsset(String(req.body.attachmentId));
+    if (!asset || asset.purpose !== 'dm' || asset.owner_id !== req.user.id) {
+      return fail(reply, 400, 'INVALID_ATTACHMENT', '图片无效，请重新上传。');
+    }
+    attachment = {
+      id: asset.id,
+      name: asset.original_name,
+      mime: asset.mime,
+      size: asset.size,
+    };
+  }
+  if (!body && !attachment) return fail(reply, 400, 'EMPTY_MESSAGE', '消息不能为空。');
+  if (body.length > 2000) return fail(reply, 400, 'MESSAGE_TOO_LONG', '消息不能超过 2000 字。');
+  recordRate(dmRate, req.user.id);
+  return { message: createDmMessage({ senderId: req.user.id, recipientId: to.id, body, attachment }) };
+});
+
+app.get('/api/dm/attachments/:id', { preHandler: requireUser }, async (req, reply) => {
+  const asset = getAsset(req.params.id);
+  if (!asset || asset.purpose !== 'dm') return fail(reply, 404, 'NOT_FOUND', '图片不存在。');
+  const allowed = req.user.role === 'admin'
+    || asset.owner_id === req.user.id
+    || Boolean(db.prepare('SELECT 1 FROM direct_messages WHERE attachment_id = ? AND (sender_id = ? OR recipient_id = ?) LIMIT 1').get(asset.id, req.user.id, req.user.id));
+  if (!allowed) return fail(reply, 403, 'FORBIDDEN', '没有权限查看这张图片。');
+  const file = path.join(UPLOAD_DIR, asset.filename);
+  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '图片已被清理。');
+  return reply.type(asset.mime).header('Cache-Control', 'private, max-age=86400').send(fs.createReadStream(file));
+});
+
+const MAX_DM_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+app.post('/api/dm/upload', { preHandler: requireUser }, async (req, reply) => {
+  let part;
+  try {
+    part = await req.file();
+  } catch (error) {
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+      return fail(reply, 413, 'FILE_TOO_LARGE', '图片不能超过 10MB。');
+    }
+    throw error;
+  }
+  if (!part) return fail(reply, 400, 'NO_FILE', '没有收到图片。');
+  if (!/^image\//.test(part.mimetype) || !ALLOWED_MIME.some((re) => re.test(part.mimetype))) {
+    part.file.resume();
+    return fail(reply, 415, 'UNSUPPORTED_FILE', '只支持图片文件。');
+  }
+  const id = crypto.randomUUID();
+  const originalName = safeName(part.filename);
+  const filename = `${id}${extensionFor(originalName, part.mimetype)}`;
+  const target = path.join(UPLOAD_DIR, filename);
+  let size = 0;
+  try {
+    await pipeline(part.file, fs.createWriteStream(target, { flags: 'wx' }));
+    size = fs.statSync(target).size;
+    if (size > MAX_DM_UPLOAD_BYTES) {
+      try { fs.unlinkSync(target); } catch { /* ignore */ }
+      return fail(reply, 413, 'FILE_TOO_LARGE', '图片不能超过 10MB。');
+    }
+  } catch (error) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE' || part.file.truncated) {
+      return fail(reply, 413, 'FILE_TOO_LARGE', '图片不能超过 10MB。');
+    }
+    throw error;
+  }
+  if (!size) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 400, 'EMPTY_FILE', '图片是空的。');
+  }
+  const asset = createAsset({
+    filename,
+    originalName,
+    mime: part.mimetype,
+    size,
+    purpose: 'dm',
+    ownerId: req.user.id,
+  });
+  return {
+    id: asset.id,
+    url: `/api/dm/attachments/${asset.id}`,
+    name: originalName,
+    mime: asset.mime,
+    size: asset.size,
+  };
+});
+
+app.get('/api/admin/dm/conversations', { preHandler: requireAuth }, async () => ({
+  conversations: listAdminDmConversations(),
+}));
+
+app.get('/api/admin/dm/messages', { preHandler: requireAuth }, async (req, reply) => {
+  const key = String(req.query?.key || '');
+  if (!/^[0-9a-f-]{36}\|[0-9a-f-]{36}$/i.test(key)) {
+    return fail(reply, 400, 'INVALID_KEY', '会话参数不正确。');
+  }
+  return { messages: listAdminDmMessages(key) };
+});
+
+function cleanupDmAttachments() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  for (const asset of listDmAssetsBefore(cutoff)) {
+    markDmAttachmentCleared(asset.id);
+    deleteAsset(asset.id);
+  }
+}
+
+cleanupDmAttachments();
+setInterval(cleanupDmAttachments, 6 * 60 * 60 * 1000).unref();
 
 app.get('/api/auth/me', { preHandler: requireUser }, async (req) => ({
   user: req.user,

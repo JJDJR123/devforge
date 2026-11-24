@@ -10,14 +10,16 @@ import { copyText, getErrorMessage } from '../utils';
 import { RegistrationRequestsView } from './RegistrationRequestsView';
 import { InviteCodesView } from './InviteCodesView';
 import { AdminMailboxView } from './AdminMailboxView';
+import { AdminDmPanel } from './AdminDmPanel';
 
-type Tab = 'users' | 'requests' | 'invites' | 'mailbox';
+type Tab = 'users' | 'requests' | 'invites' | 'mailbox' | 'dm';
 
 const TAB_LABEL: Record<Tab, string> = {
   users: '用户',
   requests: '注册申请',
   invites: '邀请码',
   mailbox: '信箱',
+  dm: '私聊',
 };
 
 export function AccountAdminView() {
@@ -56,6 +58,7 @@ export function AccountAdminView() {
         {tab === 'requests' ? <RegistrationRequestsView /> : null}
         {tab === 'invites' ? <InviteCodesView /> : null}
         {tab === 'mailbox' ? <AdminMailboxView /> : null}
+        {tab === 'dm' ? <AdminDmPanel /> : null}
       </div>
     </div>
   );

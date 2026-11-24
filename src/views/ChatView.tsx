@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, MessageCircle, Send } from 'lucide-react';
 import { api } from '../api';
 import type { ChatMessage } from '../types';
+import { useApp } from '../state/AppContext';
 import { useToast } from '../components/Toast';
 import { getErrorMessage } from '../utils';
 
 export function ChatView({ member = false }: { member?: boolean }) {
+  const { user } = useApp();
   const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
@@ -69,10 +71,11 @@ export function ChatView({ member = false }: { member?: boolean }) {
           ) : messages.length === 0 ? (
             <div className="assets-empty"><MessageCircle size={24} /><p>还没有人说话。</p></div>
           ) : messages.map((message) => (
-            <div key={message.id} className={`chat-message${message.role === 'admin' ? ' is-admin' : ''}`}>
+            <div key={message.id} className={`chat-message${message.role === 'admin' ? ' is-admin' : message.userId === user?.id ? ' is-mine' : ''}`}>
               <div className="chat-message-head">
                 <strong>{message.username}</strong>
                 {message.role === 'admin' ? <span>管理员</span> : null}
+                {user?.role === 'admin' && message.note ? <span className="chat-note">{message.note}</span> : null}
                 <time>{new Date(message.createdAt).toLocaleString('zh-CN')}</time>
               </div>
               <p>{message.body}</p>

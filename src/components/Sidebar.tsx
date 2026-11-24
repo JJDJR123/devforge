@@ -21,8 +21,8 @@ import {
   Plus,
   Search,
   Settings,
-  Sparkles,
   Trash2,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -35,15 +35,12 @@ import { ModuleIconContent } from './ModuleIcon';
 import { Avatar } from './Avatar';
 import { DropdownMenu, type MenuItem } from './DropdownMenu';
 import { ModuleDialog } from './ModuleDialog';
+import { UpdateModal } from './UpdateModal';
+import { hasUnseenUpdates, markUpdatesSeen } from '../updates';
 import type { Module, PageMeta } from '../types';
 import { cn, getErrorMessage, isApplePlatform } from '../utils';
 
 const COLLAPSE_KEY = 'devforge.collapsed';
-const UPDATE_SEEN_KEY = 'devforge.update.2026-11-19.seen';
-
-function readUpdateSeen(): boolean {
-  try { return localStorage.getItem(UPDATE_SEEN_KEY) === '1'; } catch { return false; }
-}
 
 function readCollapsed(): Set<string> {
   try {
@@ -69,7 +66,7 @@ export function Sidebar({
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [updatesOpen, setUpdatesOpen] = useState(false);
-  const [updateUnread, setUpdateUnread] = useState(() => !readUpdateSeen());
+  const [updateUnread, setUpdateUnread] = useState(() => hasUnseenUpdates('admin'));
   const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
   const [moduleDialog, setModuleDialog] = useState<{
     open: boolean;
@@ -298,7 +295,7 @@ export function Sidebar({
             onClick={() => {
               setUpdatesOpen(true);
               setUpdateUnread(false);
-              try { localStorage.setItem(UPDATE_SEEN_KEY, '1'); } catch { /* ignore */ }
+              markUpdatesSeen('admin');
             }}
           >
             <Megaphone size={17} />
@@ -336,6 +333,14 @@ export function Sidebar({
           >
             <MessageCircle size={17} />
             <span>聊天室</span>
+          </button>
+          <button
+            type="button"
+            className={cn('nav-item', location.pathname.startsWith('/friends') && 'is-active')}
+            onClick={() => go('/friends')}
+          >
+            <UserRound size={17} />
+            <span>好友</span>
           </button>
         </nav>
 
@@ -407,49 +412,7 @@ export function Sidebar({
         onSaved={(saved) => { go(`/module/${saved.id}`); }}
       />
 
-      {updatesOpen ? (
-        <div className="update-backdrop" onMouseDown={() => setUpdatesOpen(false)}>
-          <section
-            className="update-modal"
-            role="dialog"
-            aria-label="更新公告"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className="update-modal-head">
-              <div>
-                <span className="eyebrow"><Sparkles size={12} /> PRODUCT UPDATE</span>
-                <h2>更新公告</h2>
-                <p>2026-11-19 · 知识链接与体验优化</p>
-              </div>
-              <button type="button" className="icon-btn" onClick={() => setUpdatesOpen(false)} aria-label="关闭更新公告">
-                <X size={17} />
-              </button>
-            </header>
-            <div className="update-list">
-              <div className="update-item">
-                <strong>知识链接升级</strong>
-                <p>正文里的页面/模块链接会显示为当前主题色；点击弹出快速预览窗口，不离开当前页面。</p>
-              </div>
-              <div className="update-item">
-                <strong>知识链接抽屉</strong>
-                <p>出链和反向链接收到页面底部抽屉里，需要时展开；管理员和公开站都能看。</p>
-              </div>
-              <div className="update-item">
-                <strong>复制链接修复</strong>
-                <p>HTTP 环境下浏览器拒绝剪贴板时，自动改用兼容复制方式。</p>
-              </div>
-              <div className="update-item">
-                <strong>AI 助手</strong>
-                <p>对话本地保存、长期摘要、历史记录，以及 DeepSeek 模型切换。</p>
-              </div>
-            </div>
-            <footer className="update-modal-foot">
-              <span>这些更新已经生效，无需刷新缓存。</span>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUpdatesOpen(false)}>知道了</button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
+      <UpdateModal open={updatesOpen} role="admin" onClose={() => setUpdatesOpen(false)} />
     </>
   );
 }

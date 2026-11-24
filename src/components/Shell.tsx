@@ -13,6 +13,7 @@ import { KnowledgeView } from '../views/KnowledgeView';
 import { AssetsView } from '../views/AssetsView';
 import { AccountAdminView } from '../views/AccountAdminView';
 import { ChatView } from '../views/ChatView';
+import { FriendsView } from '../views/FriendsView';
 import { useApp } from '../state/AppContext';
 import { cn, isApplePlatform } from '../utils';
 
@@ -62,7 +63,9 @@ export function Shell() {
               ? '账号管理'
               : location.pathname.startsWith('/chat')
                 ? '聊天室'
-                : location.pathname.startsWith('/mailbox')
+                : location.pathname.startsWith('/friends')
+                  ? '好友'
+                  : location.pathname.startsWith('/mailbox')
                   ? '账号管理'
                   : location.pathname.startsWith('/invites')
                     ? '账号管理'
@@ -130,6 +133,7 @@ export function Shell() {
             <Route path="/invites" element={<Navigate to="/accounts?tab=invites" replace />} />
             <Route path="/mailbox" element={<Navigate to="/accounts?tab=mailbox" replace />} />
             <Route path="/chat" element={<ChatView />} />
+            <Route path="/friends" element={<FriendsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

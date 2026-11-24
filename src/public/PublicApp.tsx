@@ -12,9 +12,11 @@ import {
   Inbox,
   LogOut,
   Menu,
+  Megaphone,
   MessageCircle,
   RefreshCw,
   Search,
+  UserRound,
   X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -32,6 +34,9 @@ import { MemberKbView } from '../views/MemberKbView';
 import { MemberAssetsView } from '../views/MemberAssetsView';
 import { ChatView } from '../views/ChatView';
 import { MailboxView } from '../views/MailboxView';
+import { FriendsView } from '../views/FriendsView';
+import { UpdateModal } from '../components/UpdateModal';
+import { hasUnseenUpdates, markUpdatesSeen } from '../updates';
 
 const COLLAPSE_KEY = 'devforge.public.collapsed';
 
@@ -140,7 +145,9 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             ? '聊天室'
             : location.pathname.startsWith('/mailbox')
               ? '信箱'
-              : '总览';
+              : location.pathname.startsWith('/friends')
+                ? '好友'
+                : '总览';
 
   async function handleLogout() {
     await logout();
@@ -211,6 +218,7 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             {member ? <Route path="/assets" element={<MemberAssetsView />} /> : null}
             {member ? <Route path="/chat" element={<ChatView member />} /> : null}
             {member ? <Route path="/mailbox" element={<MailboxView />} /> : null}
+            {member ? <Route path="/friends" element={<FriendsView member />} /> : null}
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="*" element={<PublicMissing />} />
           </Routes>
@@ -253,6 +261,8 @@ function PublicSidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
+  const [updateUnread, setUpdateUnread] = useState(() => member && hasUnseenUpdates('reader'));
   const searchShortcut = isApplePlatform() ? '⌘ K' : 'Ctrl K';
   const modules = useMemo(
     () => [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -405,6 +415,23 @@ function PublicSidebar({
               <Inbox size={16} />
               <span>信箱</span>
             </button>
+            <button type="button" className={cn('nav-item', location.pathname.startsWith('/friends') && 'is-active')} onClick={() => go('/friends')}>
+              <UserRound size={16} />
+              <span>好友</span>
+            </button>
+            <button
+              type="button"
+              className="nav-item nav-item-update"
+              onClick={() => {
+                setUpdatesOpen(true);
+                setUpdateUnread(false);
+                markUpdatesSeen('reader');
+              }}
+            >
+              <Megaphone size={16} />
+              <span>更新公告</span>
+              {updateUnread ? <em>NEW</em> : null}
+            </button>
           </>
         ) : null}
         <button type="button" className={cn('nav-item', location.pathname === '/' && 'is-active')} onClick={() => go('/')}>
@@ -437,6 +464,7 @@ function PublicSidebar({
           <span>内容由管理员维护</span>
         </div>
       </div>
+      {member ? <UpdateModal open={updatesOpen} role="reader" onClose={() => setUpdatesOpen(false)} /> : null}
     </aside>
   );
 }

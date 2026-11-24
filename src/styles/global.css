@@ -3660,3 +3660,86 @@ kbd {
 }
 
 .account-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Friends + direct messages */
+.chat-message.is-admin { border-color: rgba(74, 222, 128, 0.36); background: rgba(34, 197, 94, 0.10); }
+.chat-message.is-admin .chat-message-head span { color: #4ade80; border-color: rgba(74, 222, 128, 0.35); }
+.chat-message.is-mine { align-self: flex-end; border-color: rgba(96, 165, 250, 0.42); background: rgba(59, 130, 246, 0.12); }
+.friends-view { width: min(100%, 1120px); margin: 0 auto; padding: 26px clamp(18px, 3vw, 40px) 64px; }
+.friends-layout { display: grid; grid-template-columns: minmax(230px, 30%) 1fr; gap: 14px; margin-top: 20px; align-items: start; }
+.friends-side { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+.friends-search { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--faint); background: var(--surface); }
+.friends-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 10px; }
+.friend-results { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+.friend-result { display: flex; align-items: center; gap: 6px; padding: 6px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.friend-result:hover { background: rgba(255, 255, 255, 0.04); }
+.friend-result span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.friend-result small { margin-left: auto; color: var(--faint); font-size: 7px; }
+.friend-section { margin-top: 14px; }
+.friend-section-title { display: flex; align-items: center; gap: 5px; color: var(--faint); font-size: 8px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; }
+.friend-section-title em { color: var(--accent); font-style: normal; }
+.friend-request { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-top: 5px; padding: 6px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.025); font-size: 10px; }
+.friend-request > div { display: flex; }
+.friend-row { display: flex; align-items: center; gap: 7px; width: 100%; margin-top: 4px; padding: 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.friend-row:hover { background: rgba(255, 255, 255, 0.035); }
+.friend-row.is-active { border-color: var(--accent-line); background: var(--accent-soft); }
+.friend-avatar { display: flex; align-items: center; justify-content: center; width: 25px; height: 25px; flex: 0 0 auto; border-radius: 7px; background: rgba(255, 255, 255, 0.05); color: var(--accent); font-family: var(--font-mono); font-size: 10px; }
+.friend-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.friend-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.friend-name small { color: var(--faint); font-size: 8px; }
+.friend-row > em { margin-left: auto; color: #4ade80; font-size: 7px; font-style: normal; }
+.friend-empty { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 18px 6px; color: var(--faint); font-size: 9px; text-align: center; }
+.friend-blocked-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; color: var(--muted); font-size: 9px; }
+.friend-chat { min-width: 0; min-height: 540px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); overflow: hidden; }
+.friend-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; border-bottom: 1px solid var(--line); }
+.friend-chat-head > div { display: flex; flex-direction: column; gap: 2px; }
+.friend-chat-head strong { font-size: 12px; }
+.friend-chat-head span { color: var(--faint); font-size: 8px; }
+.friend-chat-actions { display: flex; gap: 9px; }
+.friend-chat-actions .link-button { display: inline-flex; align-items: center; gap: 3px; }
+.friend-chat-actions .is-danger { color: var(--danger); }
+.friend-note-row { display: flex; gap: 6px; padding: 7px 11px; border-bottom: 1px solid var(--line); }
+.friend-note-row input { flex: 1; min-width: 0; padding: 6px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 9px; outline: 0; }
+.friend-messages { display: flex; flex-direction: column; gap: 8px; min-height: 300px; max-height: 48vh; overflow-y: auto; padding: 14px; }
+.dm-message { align-self: flex-start; max-width: 82%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.025); }
+.dm-message.is-mine { align-self: flex-end; border-color: rgba(96, 165, 250, 0.42); background: rgba(59, 130, 246, 0.12); }
+.dm-message.is-admin { align-self: flex-start; border-color: rgba(74, 222, 128, 0.36); background: rgba(34, 197, 94, 0.10); }
+.dm-message.is-observed { align-self: flex-start; }
+.dm-message-head { display: flex; align-items: center; gap: 7px; color: var(--faint); font-family: var(--font-mono); font-size: 7.5px; }
+.dm-message-head time { margin-left: auto; }
+.dm-message p { margin-top: 5px; color: var(--text); font-size: 11px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.dm-message img { display: block; max-width: 100%; max-height: 240px; margin-top: 6px; border-radius: 6px; object-fit: contain; }
+.dm-cleared { margin-top: 5px; color: var(--faint); font-size: 9px; }
+.dm-compose { border-top: 1px solid var(--line); background: rgba(0, 0, 0, 0.1); }
+.dm-compose.is-dragging { outline: 2px dashed var(--accent); outline-offset: -5px; }
+.dm-compose-row { display: flex; align-items: flex-end; gap: 6px; padding: 8px 10px 4px; }
+.dm-compose-row textarea { flex: 1; min-height: 45px; max-height: 120px; resize: vertical; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 10px; outline: 0; }
+.dm-compose-row .btn { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.dm-attachment { display: flex; align-items: center; gap: 7px; padding: 7px 10px 0; color: var(--muted); font-size: 9px; }
+.dm-attachment img { width: 38px; height: 38px; border-radius: 5px; object-fit: cover; }
+.dm-notice { padding: 0 10px 8px; color: var(--faint); font-size: 7.5px; }
+.friend-chat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 540px; padding: 20px; color: var(--faint); text-align: center; }
+.friend-chat-empty h2 { color: var(--text-soft); font-size: 16px; }
+.friend-chat-empty p { max-width: 260px; font-size: 10px; line-height: 1.5; }
+.admin-dm-warning { margin-bottom: 12px; padding: 8px 10px; border: 1px solid rgba(247, 200, 106, 0.3); border-radius: 7px; color: #f7c86a; font-size: 9px; background: rgba(247, 200, 106, 0.07); }
+.admin-dm-layout { display: grid; grid-template-columns: minmax(230px, 30%) 1fr; gap: 12px; }
+.admin-dm-list { display: flex; flex-direction: column; gap: 4px; }
+.admin-dm-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.admin-dm-row:hover { background: rgba(255, 255, 255, 0.035); }
+.admin-dm-row.is-active { border-color: var(--accent-line); background: var(--accent-soft); }
+.admin-dm-row strong { font-size: 9px; }
+.admin-dm-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 8px; }
+.admin-dm-row time { color: var(--faint); font-family: var(--font-mono); font-size: 7px; }
+.admin-dm-messages { min-height: 300px; max-height: 55vh; overflow-y: auto; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+@media (max-width: 760px) {
+  .friends-layout, .admin-dm-layout { grid-template-columns: 1fr; }
+  .friend-chat { min-height: 420px; }
+  .dm-message { max-width: 94%; }
+  .dm-compose-row { flex-wrap: wrap; }
+  .dm-compose-row textarea { width: 100%; flex-basis: 100%; }
+}
+
+.update-block + .update-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.update-date { margin-bottom: 7px; color: var(--accent); font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.06em; }
+
+.chat-note { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted) !important; border: 1px dashed var(--line) !important; border-radius: 4px !important; padding: 1px 5px !important; background: transparent !important; }

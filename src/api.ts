@@ -16,6 +16,11 @@ import type {
   ChatMessage,
   Suggestion,
   InviteCode,
+  FriendData,
+  FriendUser,
+  DmConversation,
+  DmMessage,
+  AdminDmConversation,
   Module,
   Page,
   PageLinks,
@@ -132,6 +137,64 @@ export const api = {
 
   generateInvites: (count = 10) =>
     request<{ codes: InviteCode[] }>('/api/admin/invites', { method: 'POST', body: { count } }),
+
+  friends: () => request<FriendData>('/api/friends'),
+
+  searchFriendUsers: (q: string) =>
+    request<{ users: FriendUser[] }>(`/api/friends/search?q=${encodeURIComponent(q)}`),
+
+  requestFriend: (userId: string) =>
+    request<{ friendship: unknown; autoAccepted: boolean }>('/api/friends/requests', {
+      method: 'POST',
+      body: { userId },
+    }),
+
+  acceptFriend: (id: string) =>
+    request<{ ok: true }>(`/api/friends/requests/${encodeURIComponent(id)}/accept`, { method: 'POST', body: {} }),
+
+  rejectFriend: (id: string) =>
+    request<{ ok: true }>(`/api/friends/requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: {} }),
+
+  removeFriend: (userId: string) =>
+    request<{ ok: true }>(`/api/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+
+  blockFriend: (userId: string) =>
+    request<{ ok: true }>(`/api/friends/${encodeURIComponent(userId)}/block`, { method: 'POST', body: {} }),
+
+  unblockFriend: (userId: string) =>
+    request<{ ok: true }>(`/api/friends/${encodeURIComponent(userId)}/unblock`, { method: 'POST', body: {} }),
+
+  setFriendNote: (userId: string, note: string) =>
+    request<{ note: string }>(`/api/friends/${encodeURIComponent(userId)}/note`, {
+      method: 'PATCH',
+      body: { note },
+    }),
+
+  dmConversations: () => request<{ conversations: DmConversation[] }>('/api/dm/conversations'),
+
+  dmMessages: (userId: string) =>
+    request<{ user: FriendUser; messages: DmMessage[] }>(`/api/dm/conversations/${encodeURIComponent(userId)}`),
+
+  sendDm: (toUserId: string, body: string, attachmentId?: string) =>
+    request<{ message: DmMessage }>('/api/dm/messages', {
+      method: 'POST',
+      body: { toUserId, body, ...(attachmentId ? { attachmentId } : {}) },
+    }),
+
+  uploadDmImage: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ id: string; url: string; name: string; mime: string; size: number }>(
+      '/api/dm/upload',
+      { method: 'POST', body: form },
+    );
+  },
+
+  adminDmConversations: () =>
+    request<{ conversations: AdminDmConversation[] }>('/api/admin/dm/conversations'),
+
+  adminDmMessages: (key: string) =>
+    request<{ messages: DmMessage[] }>(`/api/admin/dm/messages?key=${encodeURIComponent(key)}`),
 
   registrations: (status = 'pending') =>
     request<{ requests: RegistrationRequest[] }>(`/api/admin/registrations?status=${encodeURIComponent(status)}`),

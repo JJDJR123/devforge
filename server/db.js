@@ -318,6 +318,52 @@ function migrate() {
     `);
   }
 
+  if (version < 15) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS friendships (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        addressee_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        blocked_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(requester_id, addressee_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id, status);
+      CREATE INDEX IF NOT EXISTS idx_friendships_requester ON friendships(requester_id, status);
+
+      CREATE TABLE IF NOT EXISTS friend_notes (
+        owner_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(owner_id, friend_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id TEXT PRIMARY KEY,
+        conversation_key TEXT NOT NULL,
+        sender_id TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        attachment_id TEXT,
+        attachment_name TEXT,
+        attachment_mime TEXT,
+        attachment_size INTEGER,
+        attachment_cleared INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        read_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_dm_key ON direct_messages(conversation_key, created_at);
+      CREATE INDEX IF NOT EXISTS idx_dm_recipient ON direct_messages(recipient_id, read_at);
+      CREATE INDEX IF NOT EXISTS idx_dm_attachment ON direct_messages(attachment_id);
+
+      ALTER TABLE assets ADD COLUMN owner_id TEXT NOT NULL DEFAULT '';
+      PRAGMA user_version = 15;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -1513,16 +1559,291 @@ export function exportAll() {
 }
 
 /* ------------------------------------------------------------------ */
+/* friends + direct messages                                           */
+/* ------------------------------------------------------------------ */
+
+export function friendPairKey(a, b) {
+  return [String(a), String(b)].sort().join('|');
+}
+
+export function findFriendshipBetween(a, b) {
+  return db.prepare(`
+    SELECT * FROM friendships
+    WHERE (requester_id = ? AND addressee_id = ?)
+       OR (requester_id = ? AND addressee_id = ?)
+    LIMIT 1
+  `).get(a, b, b, a) || null;
+}
+
+function mapFriendUser(row, note = '') {
+  if (!row) return null;
+  return {
+    id: row.id,
+    username: row.username,
+    role: row.role,
+    status: row.status,
+    note,
+  };
+}
+
+function friendRowUser(id) {
+  return db.prepare('SELECT id, username, role, status FROM users WHERE id = ?').get(id) || null;
+}
+
+export function listFriendData(userId) {
+  const rows = db.prepare(`
+    SELECT * FROM friendships
+    WHERE requester_id = ? OR addressee_id = ?
+    ORDER BY updated_at DESC
+  `).all(userId, userId);
+  const notes = new Map(
+    db.prepare('SELECT friend_id, note FROM friend_notes WHERE owner_id = ?').all(userId)
+      .map((row) => [row.friend_id, row.note]),
+  );
+  const friends = [];
+  const incoming = [];
+  const outgoing = [];
+  const blocked = [];
+  for (const row of rows) {
+    const otherId = row.requester_id === userId ? row.addressee_id : row.requester_id;
+    const other = friendRowUser(otherId);
+    if (!other) continue;
+    const item = {
+      friendshipId: row.id,
+      user: mapFriendUser(other, notes.get(otherId) || ''),
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+    if (row.status === 'accepted') friends.push(item);
+    else if (row.status === 'pending' && row.addressee_id === userId) incoming.push(item);
+    else if (row.status === 'pending' && row.requester_id === userId) outgoing.push(item);
+    else if (row.status === 'blocked') blocked.push(item);
+  }
+  return { friends, incoming, outgoing, blocked };
+}
+
+export function createFriendRequest(requesterId, addresseeId) {
+  const existing = findFriendshipBetween(requesterId, addresseeId);
+  if (existing) {
+    if (existing.status === 'accepted') return { error: 'ALREADY_FRIENDS' };
+    if (existing.status === 'blocked') return { error: 'BLOCKED' };
+    if (existing.status === 'pending' && existing.addressee_id === requesterId) {
+      db.prepare(`
+        UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?
+      `).run(now(), existing.id);
+      return { friendship: db.prepare('SELECT * FROM friendships WHERE id = ?').get(existing.id), autoAccepted: true };
+    }
+    if (existing.status === 'pending') return { error: 'ALREADY_PENDING' };
+    db.prepare(`
+      UPDATE friendships SET requester_id = ?, addressee_id = ?, status = 'pending', blocked_by = NULL, updated_at = ?
+      WHERE id = ?
+    `).run(requesterId, addresseeId, now(), existing.id);
+    return { friendship: db.prepare('SELECT * FROM friendships WHERE id = ?').get(existing.id) };
+  }
+  const id = uid();
+  db.prepare(`
+    INSERT INTO friendships (id, requester_id, addressee_id, status, created_at, updated_at)
+    VALUES (?, ?, ?, 'pending', ?, ?)
+  `).run(id, requesterId, addresseeId, now(), now());
+  return { friendship: db.prepare('SELECT * FROM friendships WHERE id = ?').get(id) };
+}
+
+export function answerFriendRequest(id, userId, accept) {
+  const row = db.prepare('SELECT * FROM friendships WHERE id = ?').get(id);
+  if (!row || row.addressee_id !== userId || row.status !== 'pending') return null;
+  const status = accept ? 'accepted' : 'rejected';
+  db.prepare('UPDATE friendships SET status = ?, updated_at = ? WHERE id = ?').run(status, now(), id);
+  return db.prepare('SELECT * FROM friendships WHERE id = ?').get(id);
+}
+
+export function removeFriend(userId, otherId) {
+  const row = findFriendshipBetween(userId, otherId);
+  if (!row || row.status !== 'accepted') return false;
+  db.prepare('DELETE FROM friendships WHERE id = ?').run(row.id);
+  db.prepare('DELETE FROM friend_notes WHERE (owner_id = ? AND friend_id = ?) OR (owner_id = ? AND friend_id = ?)')
+    .run(userId, otherId, otherId, userId);
+  return true;
+}
+
+export function blockFriend(userId, otherId) {
+  const existing = findFriendshipBetween(userId, otherId);
+  if (existing) {
+    db.prepare("UPDATE friendships SET status = 'blocked', blocked_by = ?, updated_at = ? WHERE id = ?")
+      .run(userId, now(), existing.id);
+  } else {
+    db.prepare(`
+      INSERT INTO friendships (id, requester_id, addressee_id, status, blocked_by, created_at, updated_at)
+      VALUES (?, ?, ?, 'blocked', ?, ?, ?)
+    `).run(uid(), userId, otherId, userId, now(), now());
+  }
+  return true;
+}
+
+export function unblockFriend(userId, otherId) {
+  const row = findFriendshipBetween(userId, otherId);
+  if (!row || row.status !== 'blocked' || row.blocked_by !== userId) return false;
+  db.prepare('DELETE FROM friendships WHERE id = ?').run(row.id);
+  return true;
+}
+
+export function setFriendNote(ownerId, friendId, note) {
+  db.prepare(`
+    INSERT INTO friend_notes (owner_id, friend_id, note, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(owner_id, friend_id) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at
+  `).run(ownerId, friendId, String(note || '').trim().slice(0, 120), now());
+  return String(note || '').trim().slice(0, 120);
+}
+
+export function searchUsers(userId, q, limit = 20) {
+  const term = String(q || '').trim().toLowerCase();
+  if (!term) return [];
+  return db.prepare(`
+    SELECT id, username, role, status FROM users
+    WHERE id <> ? AND status = 'active' AND lower(username) LIKE ?
+    ORDER BY username ASC LIMIT ?
+  `).all(userId, `%${term}%`, Math.min(Math.max(Number(limit) || 20, 1), 50));
+}
+
+function mapDmRow(row) {
+  return {
+    id: row.id,
+    conversationKey: row.conversation_key,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    body: row.body || '',
+    createdAt: row.created_at,
+    readAt: row.read_at || null,
+    attachment: row.attachment_id ? {
+      id: row.attachment_id,
+      url: `/api/dm/attachments/${row.attachment_id}`,
+      name: row.attachment_name || '图片',
+      mime: row.attachment_mime || 'image/*',
+      size: row.attachment_size || 0,
+      cleared: Boolean(row.attachment_cleared),
+    } : null,
+    attachmentCleared: Boolean(row.attachment_cleared),
+  };
+}
+
+export function createDmMessage({ senderId, recipientId, body, attachment = null }) {
+  const key = friendPairKey(senderId, recipientId);
+  const id = uid();
+  db.prepare(`
+    INSERT INTO direct_messages (
+      id, conversation_key, sender_id, recipient_id, body,
+      attachment_id, attachment_name, attachment_mime, attachment_size, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, key, senderId, recipientId, String(body || '').slice(0, 2000),
+    attachment?.id || null,
+    attachment?.name || null,
+    attachment?.mime || null,
+    attachment?.size || null,
+    now(),
+  );
+  return mapDmRow(db.prepare('SELECT * FROM direct_messages WHERE id = ?').get(id));
+}
+
+export function listDmMessages(userId, otherId, limit = 200) {
+  const key = friendPairKey(userId, otherId);
+  db.prepare(`
+    UPDATE direct_messages SET read_at = ?
+    WHERE conversation_key = ? AND recipient_id = ? AND read_at IS NULL
+  `).run(now(), key, userId);
+  const rows = db.prepare(`
+    SELECT * FROM direct_messages
+    WHERE conversation_key = ?
+    ORDER BY created_at DESC LIMIT ?
+  `).all(key, Math.min(Math.max(Number(limit) || 200, 1), 300));
+  return rows.reverse().map(mapDmRow);
+}
+
+export function listDmConversations(userId) {
+  const rows = db.prepare(`
+    SELECT * FROM direct_messages
+    WHERE sender_id = ? OR recipient_id = ?
+    ORDER BY created_at DESC LIMIT 1000
+  `).all(userId, userId);
+  const grouped = new Map();
+  for (const row of rows) {
+    if (!grouped.has(row.conversation_key)) grouped.set(row.conversation_key, row);
+  }
+  const result = [];
+  for (const [key, last] of grouped) {
+    const otherId = last.sender_id === userId ? last.recipient_id : last.sender_id;
+    const other = friendRowUser(otherId);
+    if (!other) continue;
+    const unread = db.prepare(`
+      SELECT COUNT(*) AS n FROM direct_messages
+      WHERE conversation_key = ? AND recipient_id = ? AND read_at IS NULL
+    `).get(key, userId).n;
+    result.push({
+      key,
+      user: mapFriendUser(other),
+      lastMessage: last.body || (last.attachment_id ? '[图片]' : ''),
+      lastAt: last.created_at,
+      unread,
+    });
+  }
+  return result.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+export function listAdminDmConversations() {
+  const rows = db.prepare('SELECT * FROM direct_messages ORDER BY created_at DESC LIMIT 2000').all();
+  const grouped = new Map();
+  for (const row of rows) {
+    if (!grouped.has(row.conversation_key)) grouped.set(row.conversation_key, row);
+  }
+  const result = [];
+  for (const [key, last] of grouped) {
+    const a = friendRowUser(last.sender_id);
+    const b = friendRowUser(last.recipient_id);
+    if (!a || !b) continue;
+    result.push({
+      key,
+      users: [mapFriendUser(a), mapFriendUser(b)],
+      lastMessage: last.body || (last.attachment_id ? '[图片]' : ''),
+      lastAt: last.created_at,
+    });
+  }
+  return result.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+export function listAdminDmMessages(conversationKey, limit = 200) {
+  const rows = db.prepare(`
+    SELECT * FROM direct_messages WHERE conversation_key = ?
+    ORDER BY created_at DESC LIMIT ?
+  `).all(conversationKey, Math.min(Math.max(Number(limit) || 200, 1), 300));
+  return rows.reverse().map(mapDmRow);
+}
+
+export function listDmAssetsBefore(cutoff) {
+  return db.prepare(`
+    SELECT * FROM assets WHERE purpose = 'dm' AND created_at < ?
+  `).all(cutoff);
+}
+
+export function markDmAttachmentCleared(assetId) {
+  db.prepare(`
+    UPDATE direct_messages
+    SET attachment_cleared = 1, attachment_id = NULL, attachment_name = NULL, attachment_mime = NULL, attachment_size = NULL
+    WHERE attachment_id = ?
+  `).run(assetId);
+}
+
+/* ------------------------------------------------------------------ */
 /* assets                                                              */
 /* ------------------------------------------------------------------ */
 
-export function createAsset({ filename, originalName, mime, size, purpose = 'unknown' }) {
+export function createAsset({ filename, originalName, mime, size, purpose = 'unknown', ownerId = '' }) {
   const id = uid();
   db.prepare(`
-    INSERT INTO assets (id, filename, original_name, mime, size, purpose, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, filename, originalName, mime, size, purpose, now());
-  return { id, filename, originalName, mime, size, purpose };
+    INSERT INTO assets (id, filename, original_name, mime, size, purpose, owner_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, filename, originalName, mime, size, purpose, ownerId, now());
+  return { id, filename, originalName, mime, size, purpose, ownerId };
 }
 
 export function getAsset(id) {
