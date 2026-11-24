@@ -66,6 +66,12 @@ export function MailboxView() {
               <article key={message.id} className="mailbox-item">
                 <div className="mailbox-item-head"><span>{message.status === 'read' ? '已读' : '未读'}</span><time>{new Date(message.createdAt).toLocaleString('zh-CN')}</time></div>
                 <p>{message.body}</p>
+                {message.reply ? (
+                  <div className="mailbox-reply">
+                    <div className="mailbox-reply-head">站长回复 · {message.repliedAt ? new Date(message.repliedAt).toLocaleString('zh-CN') : ''}</div>
+                    <p>{message.reply}</p>
+                  </div>
+                ) : null}
               </article>
             ))}
       </div>

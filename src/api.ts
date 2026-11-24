@@ -121,6 +121,12 @@ export const api = {
   markSuggestionRead: (id: string) =>
     request<{ ok: true }>(`/api/admin/mailbox/${encodeURIComponent(id)}/read`, { method: 'POST', body: {} }),
 
+  replySuggestion: (id: string, body: string) =>
+    request<{ message: Suggestion }>(`/api/admin/mailbox/${encodeURIComponent(id)}/reply`, {
+      method: 'POST',
+      body: { body },
+    }),
+
   invites: () => request<{ codes: InviteCode[] }>('/api/admin/invites'),
 
   generateInvites: (count = 10) =>

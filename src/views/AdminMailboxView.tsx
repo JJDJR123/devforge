@@ -11,6 +11,9 @@ export function AdminMailboxView() {
   const [status, setStatus] = useState('unread');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [replyOpenId, setReplyOpenId] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
 
   async function load(next = status) {
     setLoading(true);
@@ -33,6 +36,28 @@ export function AdminMailboxView() {
       setMessages((current) => current.map((item) => item.id === message.id ? { ...item, status: 'read' } : item));
     } catch (markError) {
       toast(getErrorMessage(markError), 'error');
+    }
+  }
+
+  function openReply(message: Suggestion) {
+    setReplyOpenId(message.id);
+    setReplyText(message.reply || '');
+  }
+
+  async function sendReply(message: Suggestion) {
+    const body = replyText.trim();
+    if (!body || sendingReply) return;
+    setSendingReply(true);
+    try {
+      await api.replySuggestion(message.id, body);
+      setReplyOpenId('');
+      setReplyText('');
+      toast('回复已发送。', 'success');
+      await load();
+    } catch (replyError) {
+      toast(getErrorMessage(replyError), 'error');
+    } finally {
+      setSendingReply(false);
     }
   }
 
@@ -63,8 +88,26 @@ export function AdminMailboxView() {
                   <span>{message.status === 'read' ? '已读' : '未读'}</span>
                   <time>{new Date(message.createdAt).toLocaleString('zh-CN')}</time>
                   {message.status === 'unread' ? <button type="button" className="link-button" onClick={() => { void markRead(message); }}><MailOpen size={12} /> 标为已读</button> : null}
+                  <button type="button" className="link-button" onClick={() => openReply(message)}>{message.reply ? '修改回复' : '回复'}</button>
                 </div>
                 <p>{message.body}</p>
+                {message.reply ? (
+                  <div className="mailbox-reply">
+                    <div className="mailbox-reply-head">管理员 {message.repliedBy || ''} · {message.repliedAt ? new Date(message.repliedAt).toLocaleString('zh-CN') : ''}</div>
+                    <p>{message.reply}</p>
+                  </div>
+                ) : null}
+                {replyOpenId === message.id ? (
+                  <div className="mailbox-reply-form">
+                    <textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} rows={3} maxLength={3000} placeholder="回复这位成员…" autoFocus />
+                    <div>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => { void sendReply(message); }} disabled={sendingReply || !replyText.trim()}>
+                        {sendingReply ? <Loader2 size={14} className="spin" /> : null} 发送回复
+                      </button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReplyOpenId('')} disabled={sendingReply}>取消</button>
+                    </div>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>}

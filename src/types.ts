@@ -55,6 +55,9 @@ export type Suggestion = {
   status: 'unread' | 'read';
   createdAt: string;
   readAt: string | null;
+  reply: string;
+  repliedAt: string | null;
+  repliedBy: string | null;
 };
 
 export type InviteCode = {

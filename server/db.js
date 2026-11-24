@@ -302,6 +302,15 @@ function migrate() {
     `);
   }
 
+  if (version < 13) {
+    db.exec(`
+      ALTER TABLE suggestions ADD COLUMN reply TEXT NOT NULL DEFAULT '';
+      ALTER TABLE suggestions ADD COLUMN replied_at TEXT;
+      ALTER TABLE suggestions ADD COLUMN replied_by TEXT;
+      PRAGMA user_version = 13;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -493,6 +502,9 @@ function mapSuggestionRow(row) {
     status: row.status,
     createdAt: row.created_at,
     readAt: row.read_at || null,
+    reply: row.reply || '',
+    repliedAt: row.replied_at || null,
+    repliedBy: row.replied_by || null,
   };
 }
 
@@ -522,6 +534,16 @@ export function markSuggestionRead(id) {
     "UPDATE suggestions SET status = 'read', read_at = ? WHERE id = ? AND status = 'unread'",
   ).run(now(), id);
   return result.changes > 0;
+}
+
+export function replyToSuggestion(id, { reply, repliedBy = '' }) {
+  const result = db.prepare(`
+    UPDATE suggestions
+    SET reply = ?, replied_at = ?, replied_by = ?, status = 'read', read_at = COALESCE(read_at, ?)
+    WHERE id = ?
+  `).run(String(reply || '').trim().slice(0, 3000), now(), String(repliedBy || '').slice(0, 80), now(), id);
+  if (!result.changes) return null;
+  return mapSuggestionRow(db.prepare('SELECT * FROM suggestions WHERE id = ?').get(id));
 }
 
 /* ------------------------------------------------------------------ */

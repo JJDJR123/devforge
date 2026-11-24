@@ -3600,3 +3600,10 @@ kbd {
   .chat-compose { flex-direction: column; align-items: stretch; }
   .chat-compose .btn { align-self: flex-end; }
 }
+
+.mailbox-reply { margin-top: 10px; padding: 9px 10px; border-left: 2px solid var(--accent); border-radius: 0 6px 6px 0; background: var(--accent-soft); }
+.mailbox-reply-head { color: var(--accent); font-size: 8px; font-family: var(--font-mono); margin-bottom: 5px; }
+.mailbox-reply p { margin: 0; color: var(--text-soft); font-size: 10.5px; line-height: 1.6; white-space: pre-wrap; }
+.mailbox-reply-form { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.mailbox-reply-form textarea { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; outline: 0; }
+.mailbox-reply-form > div { display: flex; gap: 6px; justify-content: flex-end; }

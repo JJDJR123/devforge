@@ -62,6 +62,7 @@ import {
   listChatMessages,
   listSuggestions,
   markSuggestionRead,
+  replyToSuggestion,
   createInviteCodes,
   listInviteCodes,
   consumeInviteCode,
@@ -509,6 +510,15 @@ app.post('/api/admin/mailbox/:id/read', { preHandler: requireAuth }, async (req,
   const ok = markSuggestionRead(req.params.id);
   if (!ok) return fail(reply, 404, 'NOT_FOUND', '消息不存在或已经读过。');
   return { ok: true };
+});
+
+app.post('/api/admin/mailbox/:id/reply', { preHandler: requireAuth }, async (req, reply) => {
+  const body = String(req.body?.body || '').trim();
+  if (!body) return fail(reply, 400, 'EMPTY_REPLY', '回复内容不能为空。');
+  if (body.length > 3000) return fail(reply, 400, 'REPLY_TOO_LONG', '回复不能超过 3000 字。');
+  const message = replyToSuggestion(req.params.id, { reply: body, repliedBy: req.user.username });
+  if (!message) return fail(reply, 404, 'NOT_FOUND', '消息不存在。');
+  return { message };
 });
 
 app.get('/api/auth/me', { preHandler: requireUser }, async (req) => ({
