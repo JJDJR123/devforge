@@ -349,6 +349,21 @@ export function listUsers() {
   `).all();
 }
 
+export function countAdmins() {
+  return db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n;
+}
+
+export function resetUserPassword(id, passwordHash) {
+  updatePassword(id, passwordHash);
+  deleteSessionsForUser(id);
+  return getUserById(id);
+}
+
+export function deleteUser(id) {
+  deleteSessionsForUser(id);
+  return db.prepare('DELETE FROM users WHERE id = ?').run(id).changes > 0;
+}
+
 export function updateUserNote(id, note) {
   db.prepare('UPDATE users SET note = ? WHERE id = ?').run(String(note || '').trim().slice(0, 500), id);
   return getUserById(id);

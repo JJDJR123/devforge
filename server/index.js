@@ -55,6 +55,9 @@ import {
   deleteOtherSessions,
   deletePage,
   deleteSessionsForUser,
+  deleteUser,
+  countAdmins,
+  resetUserPassword,
   listUsers,
   updateUserNote,
   setUserStatus,
@@ -436,6 +439,62 @@ app.patch('/api/admin/users/:id', { preHandler: requireAuth }, async (req, reply
     if (status === 'suspended') deleteSessionsForUser(existing.id);
   }
   return { user };
+});
+
+app.post('/api/admin/users/:id/reset-password', { preHandler: requireAuth }, async (req, reply) => {
+  const user = getUserById(req.params.id);
+  if (!user) return fail(reply, 404, 'NOT_FOUND', '账号不存在。');
+  if (user.id === req.user.id) {
+    return fail(reply, 400, 'SELF_PASSWORD', '请在设置里修改自己的密码。');
+  }
+  const temporaryPassword = crypto.randomBytes(9).toString('base64url');
+  resetUserPassword(user.id, hashPassword(temporaryPassword));
+  return { ok: true, temporaryPassword, user: getUserById(user.id) };
+});
+
+app.delete('/api/admin/users/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const user = getUserById(req.params.id);
+  if (!user) return fail(reply, 404, 'NOT_FOUND', '账号不存在。');
+  if (user.id === req.user.id) {
+    return fail(reply, 400, 'SELF_DELETE', '不能删除当前登录的管理员账号。');
+  }
+  if (user.role === 'admin' && countAdmins() <= 1) {
+    return fail(reply, 400, 'LAST_ADMIN', '不能删除最后一个管理员。');
+  }
+  deleteUser(user.id);
+  return { ok: true };
+});
+
+app.post('/api/admin/users/batch', { preHandler: requireAuth }, async (req, reply) => {
+  const action = String(req.body?.action || '');
+  if (!['suspend', 'activate', 'delete'].includes(action)) {
+    return fail(reply, 400, 'INVALID_ACTION', '不支持的批量操作。');
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map((id) => String(id)).filter(Boolean))].slice(0, 100)
+    : [];
+  if (!ids.length) return fail(reply, 400, 'NO_IDS', '没有选择账号。');
+  const updated = [];
+  const skipped = [];
+  for (const id of ids) {
+    const user = getUserById(id);
+    if (!user) { skipped.push({ id, reason: 'NOT_FOUND' }); continue; }
+    if (user.id === req.user.id) { skipped.push({ id, reason: 'SELF' }); continue; }
+    if (action === 'delete') {
+      if (user.role === 'admin' && countAdmins() <= 1) {
+        skipped.push({ id, reason: 'LAST_ADMIN' });
+        continue;
+      }
+      deleteUser(id);
+      updated.push(id);
+    } else {
+      const status = action === 'suspend' ? 'suspended' : 'active';
+      setUserStatus(id, status);
+      if (status === 'suspended') deleteSessionsForUser(id);
+      updated.push(id);
+    }
+  }
+  return { updated, skipped };
 });
 
 app.post('/api/admin/registrations/:id/approve', { preHandler: requireAuth }, async (req, reply) => {

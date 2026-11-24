@@ -144,6 +144,21 @@ export const api = {
       body: patch,
     }),
 
+  resetAdminUserPassword: (id: string) =>
+    request<{ ok: true; temporaryPassword: string; user: AdminUser }>(
+      `/api/admin/users/${encodeURIComponent(id)}/reset-password`,
+      { method: 'POST', body: {} },
+    ),
+
+  deleteAdminUser: (id: string) =>
+    request<{ ok: true }>(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  batchAdminUsers: (ids: string[], action: 'suspend' | 'activate' | 'delete') =>
+    request<{ updated: string[]; skipped: Array<{ id: string; reason: string }> }>('/api/admin/users/batch', {
+      method: 'POST',
+      body: { ids, action },
+    }),
+
   approveRegistration: (id: string) =>
     request<{ ok: true; user: User }>(`/api/admin/registrations/${encodeURIComponent(id)}/approve`, {
       method: 'POST',
