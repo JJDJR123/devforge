@@ -71,7 +71,12 @@ export function resolveSession(req) {
   if (!session) return null;
   return {
     tokenHash: session.id,
-    user: { id: session.user_id, username: session.username },
+    user: {
+      id: session.user_id,
+      username: session.username,
+      role: session.role === 'reader' ? 'reader' : 'admin',
+      status: session.status,
+    },
     expiresAt: session.expires_at,
   };
 }
@@ -106,6 +111,21 @@ export function clearSessionCookie(reply, req) {
 }
 
 export function requireAuth(req, reply, done) {
+  const session = resolveSession(req);
+  if (!session) {
+    reply.code(401).send({ error: 'UNAUTHORIZED', message: '登录已过期，请重新登录。' });
+    return;
+  }
+  if (session.user.role !== 'admin') {
+    reply.code(403).send({ error: 'FORBIDDEN', message: '这个操作需要管理员权限。' });
+    return;
+  }
+  req.session = session;
+  req.user = session.user;
+  done();
+}
+
+export function requireUser(req, reply, done) {
   const session = resolveSession(req);
   if (!session) {
     reply.code(401).send({ error: 'UNAUTHORIZED', message: '登录已过期，请重新登录。' });
@@ -153,6 +173,40 @@ setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of attempts) {
     if (entry.resetAt <= now) attempts.delete(key);
+  }
+}, 60_000).unref();
+
+/* ------------------------------------------------------------------ */
+/* registration throttling                                             */
+/* ------------------------------------------------------------------ */
+
+const registrationAttempts = new Map();
+const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
+const MAX_REGISTRATIONS_PER_IP = 3;
+
+function registrationBucket(req) {
+  const key = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  let entry = registrationAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    entry = { count: 0, resetAt: now + REGISTRATION_WINDOW_MS };
+    registrationAttempts.set(key, entry);
+  }
+  return entry;
+}
+
+export function registrationAllowed(req) {
+  return registrationBucket(req).count < MAX_REGISTRATIONS_PER_IP;
+}
+
+export function recordRegistrationAttempt(req) {
+  registrationBucket(req).count += 1;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of registrationAttempts) {
+    if (entry.resetAt <= now) registrationAttempts.delete(key);
   }
 }, 60_000).unref();
 

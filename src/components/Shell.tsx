@@ -11,6 +11,7 @@ import { PageView } from '../views/PageView';
 import { SettingsView } from '../views/SettingsView';
 import { KnowledgeView } from '../views/KnowledgeView';
 import { AssetsView } from '../views/AssetsView';
+import { RegistrationRequestsView } from '../views/RegistrationRequestsView';
 import { useApp } from '../state/AppContext';
 import { cn, isApplePlatform } from '../utils';
 
@@ -56,7 +57,9 @@ export function Shell() {
           ? '知识库'
           : location.pathname.startsWith('/assets')
             ? '素材库'
-            : '总览';
+            : location.pathname.startsWith('/requests')
+              ? '注册申请'
+              : '总览';
 
   return (
     <div className={cn('app-shell', sidebarOpen && 'sidebar-open')}>
@@ -113,6 +116,7 @@ export function Shell() {
             <Route path="/page/:pageId" element={<PageView />} />
             <Route path="/kb" element={<KnowledgeView />} />
             <Route path="/assets" element={<AssetsView />} />
+            <Route path="/requests" element={<RegistrationRequestsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

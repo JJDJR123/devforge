@@ -10,11 +10,14 @@ import type {
   BlockRecord,
   Bootstrap,
   Breadcrumb,
+  MemberAsset,
+  MemberKbDoc,
   Module,
   Page,
   PageLinks,
   PageMeta,
   PublicBootstrap,
+  RegistrationRequest,
   SearchResult,
   SiteSettings,
   Theme,
@@ -95,6 +98,30 @@ export const api = {
 
   login: (input: { username: string; password: string }) =>
     request<{ user: User }>('/api/auth/login', { method: 'POST', body: input }),
+
+  register: (input: { username: string; password: string; reason?: string; contact?: string; website?: string }) =>
+    request<{ ok: true; message: string }>('/api/register', { method: 'POST', body: input }),
+
+  registrations: (status = 'pending') =>
+    request<{ requests: RegistrationRequest[] }>(`/api/admin/registrations?status=${encodeURIComponent(status)}`),
+
+  approveRegistration: (id: string) =>
+    request<{ ok: true; user: User }>(`/api/admin/registrations/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: {},
+    }),
+
+  rejectRegistration: (id: string) =>
+    request<{ ok: true }>(`/api/admin/registrations/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: {},
+    }),
+
+  memberKb: (q = '') =>
+    request<{ docs: MemberKbDoc[] }>(`/api/member/kb?q=${encodeURIComponent(q)}`),
+
+  memberAssets: () =>
+    request<{ assets: MemberAsset[] }>('/api/member/assets'),
 
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST', body: {} }),
 

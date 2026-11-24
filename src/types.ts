@@ -1,6 +1,41 @@
 export type User = {
   id: string;
   username: string;
+  role: 'admin' | 'reader';
+};
+
+export type RegistrationRequest = {
+  id: string;
+  username: string;
+  reason: string;
+  contact: string;
+  status: 'pending' | 'approved' | 'rejected';
+  ip: string;
+  userAgent: string;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+export type MemberKbDoc = {
+  id: string;
+  title: string;
+  kind: string;
+  summary: string;
+  bodyMd: string;
+  tool: string;
+  prompt: string;
+  tags: string[];
+  updatedAt: string;
+};
+
+export type MemberAsset = {
+  id: string;
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+  pageTitle: string;
+  createdAt: string;
 };
 
 export type AIStatus = {
@@ -254,6 +289,7 @@ export type KbDoc = {
   title: string;
   kind: KbKind;
   status: KbStatus;
+  visibility: 'admin' | 'members';
   summary: string;
   bodyMd: string;
   tool: string;

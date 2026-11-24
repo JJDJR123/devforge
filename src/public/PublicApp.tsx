@@ -2,17 +2,21 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   Eye,
   FileText,
   Globe2,
+  Images,
+  LogOut,
   Menu,
   RefreshCw,
   Search,
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useApp } from '../state/AppContext';
 import { applyTheme } from '../theme';
 import type { Module, PageMeta, PublicBootstrap } from '../types';
 import { cn, formatRelativeTime, getErrorMessage, isApplePlatform } from '../utils';
@@ -22,6 +26,8 @@ import { SearchDialog } from '../components/SearchDialog';
 import { PublicHome } from './PublicHome';
 import { PublicModule } from './PublicModule';
 import { PublicPage } from './PublicPage';
+import { MemberKbView } from '../views/MemberKbView';
+import { MemberAssetsView } from '../views/MemberAssetsView';
 
 const COLLAPSE_KEY = 'devforge.public.collapsed';
 
@@ -33,9 +39,10 @@ function readCollapsed(): Set<string> {
   return new Set();
 }
 
-export function PublicApp({ preview = false }: { preview?: boolean }) {
+export function PublicApp({ preview = false, member = false }: { preview?: boolean; member?: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useApp();
   const [data, setData] = useState<PublicBootstrap | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -121,7 +128,16 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
     ? '模块'
     : location.pathname.startsWith('/page/')
       ? '页面'
-      : '总览';
+      : location.pathname.startsWith('/kb')
+        ? '知识库'
+        : location.pathname.startsWith('/assets')
+          ? '素材库'
+          : '总览';
+
+  async function handleLogout() {
+    await logout();
+    navigate('/admin');
+  }
 
   return (
     <div className={cn('app-shell public-shell', sidebarOpen && 'sidebar-open')}>
@@ -164,6 +180,19 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
               >
                 返回管理 <ArrowLeft size={13} />
               </button>
+            ) : member ? (
+              <div className="public-member-actions">
+                <button type="button" className="public-member-link" onClick={() => navigate('/kb')}>
+                  <BookOpen size={13} /> 知识库
+                </button>
+                <button type="button" className="public-member-link" onClick={() => navigate('/assets')}>
+                  <Images size={13} /> 素材库
+                </button>
+                <span className="public-topbar-badge"><Eye size={12} /> 成员 · 只读</span>
+                <button type="button" className="public-member-link" onClick={() => { void handleLogout(); }}>
+                  <LogOut size={13} /> 退出
+                </button>
+              </div>
             ) : (
               <span className="public-topbar-badge"><Eye size={12} /> 游客 · 只读</span>
             )}
@@ -175,6 +204,8 @@ export function PublicApp({ preview = false }: { preview?: boolean }) {
             <Route path="/" element={<PublicHome data={data} onOpenSearch={() => setSearchOpen(true)} />} />
             <Route path="/module/:moduleId" element={<PublicModule data={data} />} />
             <Route path="/page/:pageId" element={<PublicPage data={data} />} />
+            {member ? <Route path="/kb" element={<MemberKbView />} /> : null}
+            {member ? <Route path="/assets" element={<MemberAssetsView />} /> : null}
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="*" element={<PublicMissing />} />
           </Routes>

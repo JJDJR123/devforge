@@ -237,6 +237,32 @@ function migrate() {
     `);
   }
 
+  if (version < 11) {
+    db.exec(`
+      ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';
+      ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+
+      CREATE TABLE IF NOT EXISTS registration_requests (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        contact TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending',
+        ip TEXT NOT NULL DEFAULT '',
+        user_agent TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        reviewed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_registration_status ON registration_requests(status, created_at);
+
+      ALTER TABLE kb_docs ADD COLUMN visibility TEXT NOT NULL DEFAULT 'admin';
+      CREATE INDEX IF NOT EXISTS idx_kb_visibility ON kb_docs(status, visibility, updated_at);
+
+      PRAGMA user_version = 11;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -257,13 +283,13 @@ export function getUserByUsername(username) {
 }
 
 export function getUserById(id) {
-  return db.prepare('SELECT id, username, created_at FROM users WHERE id = ?').get(id) || null;
+  return db.prepare('SELECT id, username, role, status, created_at FROM users WHERE id = ?').get(id) || null;
 }
 
-export function createUser({ username, passwordHash }) {
+export function createUser({ username, passwordHash, role = 'admin', status = 'active' }) {
   const id = uid();
-  db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)')
-    .run(id, username, passwordHash, now());
+  db.prepare('INSERT INTO users (id, username, password_hash, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, username, passwordHash, role, status, now());
   return getUserById(id);
 }
 
@@ -283,9 +309,9 @@ export function createSession({ tokenHash, userId, expiresAt }) {
 
 export function findSession(tokenHash) {
   return db.prepare(`
-    SELECT s.id, s.expires_at, u.id AS user_id, u.username
+    SELECT s.id, s.expires_at, u.id AS user_id, u.username, u.role, u.status
     FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.id = ? AND s.expires_at > ?
+    WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'
   `).get(tokenHash, Date.now()) || null;
 }
 
@@ -304,6 +330,89 @@ export function deleteSessionsForUser(userId) {
 
 export function deleteExpiredSessions() {
   return db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(Date.now()).changes;
+}
+
+/* ------------------------------------------------------------------ */
+/* registration requests                                               */
+/* ------------------------------------------------------------------ */
+
+const registrationFromRow = (row) => row && ({
+  id: row.id,
+  username: row.username,
+  reason: row.reason,
+  contact: row.contact,
+  status: row.status,
+  ip: row.ip,
+  userAgent: row.user_agent,
+  createdAt: row.created_at,
+  reviewedAt: row.reviewed_at || null,
+});
+
+export function createRegistrationRequest({
+  username,
+  passwordHash,
+  reason = '',
+  contact = '',
+  ip = '',
+  userAgent = '',
+}) {
+  const id = uid();
+  db.prepare(`
+    INSERT INTO registration_requests
+      (id, username, password_hash, reason, contact, status, ip, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+  `).run(id, username, passwordHash, reason, contact, ip, userAgent, now());
+  return registrationFromRow(db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id));
+}
+
+export function listRegistrationRequests(status = '') {
+  const rows = status
+    ? db.prepare('SELECT * FROM registration_requests WHERE status = ? ORDER BY created_at DESC').all(status)
+    : db.prepare('SELECT * FROM registration_requests ORDER BY created_at DESC').all();
+  return rows.map(registrationFromRow);
+}
+
+export function getRegistrationRequest(id) {
+  return registrationFromRow(db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id));
+}
+
+export function pendingRegistrationExists(username) {
+  return Boolean(db.prepare("SELECT 1 FROM registration_requests WHERE username = ? AND status = 'pending'").get(username));
+}
+
+export function countRegistrationsSince(hours = 24) {
+  const cutoff = new Date(Date.now() - Math.max(1, Number(hours) || 24) * 60 * 60 * 1000).toISOString();
+  return db.prepare('SELECT COUNT(*) AS n FROM registration_requests WHERE created_at >= ?').get(cutoff).n;
+}
+
+export function approveRegistrationRequest(id) {
+  const request = db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
+  if (!request) return { error: 'NOT_FOUND' };
+  if (request.status !== 'pending') return { error: 'ALREADY_REVIEWED' };
+  db.exec('BEGIN');
+  try {
+    const user = createUser({
+      username: request.username,
+      passwordHash: request.password_hash,
+      role: 'reader',
+      status: 'active',
+    });
+    db.prepare("UPDATE registration_requests SET status = 'approved', reviewed_at = ? WHERE id = ?")
+      .run(now(), id);
+    db.exec('COMMIT');
+    return { user };
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    if (String(error?.code || '').includes('CONSTRAINT')) return { error: 'USERNAME_TAKEN' };
+    throw error;
+  }
+}
+
+export function rejectRegistrationRequest(id) {
+  const result = db.prepare(
+    "UPDATE registration_requests SET status = 'rejected', reviewed_at = ? WHERE id = ? AND status = 'pending'",
+  ).run(now(), id);
+  return result.changes > 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1300,6 +1409,10 @@ function normalizeStatus(status) {
   return KB_STATUSES.includes(status) ? status : 'draft';
 }
 
+function normalizeVisibility(visibility) {
+  return visibility === 'members' ? 'members' : 'admin';
+}
+
 function normalizeTags(tags) {
   if (Array.isArray(tags)) return tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20);
   if (typeof tags === 'string') {
@@ -1322,6 +1435,7 @@ function mapKbRow(row) {
     title: row.title,
     kind: row.kind,
     status: row.status,
+    visibility: row.visibility || 'admin',
     summary: row.summary,
     bodyMd: row.body_md,
     tool: row.tool,
@@ -1356,6 +1470,7 @@ export function createKbDoc({
   title,
   kind = 'recipe',
   status = 'draft',
+  visibility = 'admin',
   summary = '',
   bodyMd = '',
   tool = '',
@@ -1371,6 +1486,7 @@ export function createKbDoc({
     title: String(title || '未命名条目').trim().slice(0, 200) || '未命名条目',
     kind: normalizeKind(kind),
     status: normalizeStatus(status),
+    visibility: normalizeVisibility(visibility),
     summary: String(summary || '').trim(),
     bodyMd: String(bodyMd || ''),
     tool: String(tool || '').trim().slice(0, 80),
@@ -1381,10 +1497,10 @@ export function createKbDoc({
     supersedesId: supersedesId || null,
   };
   db.prepare(`
-    INSERT INTO kb_docs (id, title, kind, status, summary, body_md, tool, prompt, tags, search_text, source, source_ref, version, supersedes_id, verified_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    INSERT INTO kb_docs (id, title, kind, status, visibility, summary, body_md, tool, prompt, tags, search_text, source, source_ref, version, supersedes_id, verified_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
   `).run(
-    doc.id, doc.title, doc.kind, doc.status, doc.summary, doc.bodyMd, doc.tool, doc.prompt,
+    doc.id, doc.title, doc.kind, doc.status, doc.visibility, doc.summary, doc.bodyMd, doc.tool, doc.prompt,
     JSON.stringify(doc.tags), kbSearchText(doc), doc.source, doc.sourceRef,
     doc.supersedesId, doc.status === 'published' ? stamp : null, stamp, stamp,
   );
@@ -1398,6 +1514,7 @@ export function updateKbDoc(id, patch = {}) {
     title: patch.title != null ? String(patch.title).trim().slice(0, 200) || current.title : current.title,
     kind: patch.kind != null ? normalizeKind(patch.kind) : current.kind,
     status: patch.status != null ? normalizeStatus(patch.status) : current.status,
+    visibility: patch.visibility != null ? normalizeVisibility(patch.visibility) : current.visibility,
     summary: patch.summary != null ? String(patch.summary).trim() : current.summary,
     bodyMd: patch.bodyMd != null ? String(patch.bodyMd) : current.bodyMd,
     tool: patch.tool != null ? String(patch.tool).trim().slice(0, 80) : current.tool,
@@ -1411,11 +1528,11 @@ export function updateKbDoc(id, patch = {}) {
     ? (current.status === 'published' ? current.verifiedAt || stamp : stamp)
     : current.verifiedAt;
   db.prepare(`
-    UPDATE kb_docs SET title = ?, kind = ?, status = ?, summary = ?, body_md = ?, tool = ?, prompt = ?, tags = ?,
+    UPDATE kb_docs SET title = ?, kind = ?, status = ?, visibility = ?, summary = ?, body_md = ?, tool = ?, prompt = ?, tags = ?,
       search_text = ?, source = ?, source_ref = ?, version = ?, verified_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
-    next.title, next.kind, next.status, next.summary, next.bodyMd, next.tool, next.prompt,
+    next.title, next.kind, next.status, next.visibility, next.summary, next.bodyMd, next.tool, next.prompt,
     JSON.stringify(next.tags), kbSearchText(next), next.source, next.sourceRef,
     current.version + 1, verifiedAt, stamp, id,
   );
@@ -1434,6 +1551,24 @@ export function setKbDocStatus(id, status) {
 
 export function deleteKbDoc(id) {
   return db.prepare('DELETE FROM kb_docs WHERE id = ?').run(id).changes > 0;
+}
+
+export function listMemberKbDocs({ q = '', kind = '', limit = 200 } = {}) {
+  const where = ["status = 'published'", "visibility = 'members'"];
+  const params = [];
+  if (kind) { where.push('kind = ?'); params.push(normalizeKind(kind)); }
+  if (q) { where.push('search_text LIKE ?'); params.push(`%${q.toLowerCase()}%`); }
+  params.push(Math.min(Math.max(Number(limit) || 200, 1), 500));
+  return db.prepare(`
+    SELECT * FROM kb_docs WHERE ${where.join(' AND ')} ORDER BY updated_at DESC LIMIT ?
+  `).all(...params).map(mapKbRow);
+}
+
+export function getMemberKbDoc(id) {
+  const row = db.prepare(
+    "SELECT * FROM kb_docs WHERE id = ? AND status = 'published' AND visibility = 'members'",
+  ).get(id);
+  return mapKbRow(row);
 }
 
 function likeEscape(value) {

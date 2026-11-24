@@ -90,6 +90,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPhase('login');
         return;
       }
+      if (status.user?.role === 'reader') {
+        setUser(status.user);
+        setData(null);
+        setPhase('ready');
+        return;
+      }
       await loadBootstrap();
     } catch (error) {
       setBootError(getErrorMessage(error));
@@ -114,6 +120,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const result = await api.login({ username, password });
     setUser(result.user);
+    if (result.user.role === 'reader') {
+      setData(null);
+      setPhase('ready');
+      toast('已登录成员只读空间。', 'success');
+      return;
+    }
     await loadBootstrap();
     toast('欢迎回来，工作台已就绪。', 'success');
   }, [loadBootstrap, toast]);

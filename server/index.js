@@ -27,7 +27,10 @@ import {
   issueSession,
   loginAllowed,
   recordLoginFailure,
+  registrationAllowed,
+  recordRegistrationAttempt,
   requireAuth,
+  requireUser,
   resolveSession,
   setSessionCookie,
   setupToken,
@@ -51,6 +54,13 @@ import {
   deleteModule,
   deleteOtherSessions,
   deletePage,
+  approveRegistrationRequest,
+  createRegistrationRequest,
+  countRegistrationsSince,
+  getRegistrationRequest,
+  listRegistrationRequests,
+  pendingRegistrationExists,
+  rejectRegistrationRequest,
   exportAll,
   getAIConversation,
   getAsset,
@@ -64,6 +74,10 @@ import {
   getPublicPageBreadcrumb,
   getPublicPageLinks,
   getSiteSettings,
+  getMemberKbDoc,
+  listMemberKbDocs,
+  listPublicPageMeta,
+  listPublicModules,
   getUserById,
   getUserByUsername,
   getTheme,
@@ -302,11 +316,14 @@ app.post('/api/auth/login', async (req, reply) => {
     const left = recordLoginFailure(req);
     return fail(reply, 401, 'INVALID_CREDENTIALS', `用户名或密码不正确${left <= 3 ? `，还可以尝试 ${left} 次` : ''}。`);
   }
+  if (user.status !== 'active') {
+    return fail(reply, 403, 'ACCOUNT_INACTIVE', '这个账号暂时不可用。');
+  }
 
   clearLoginFailures(req);
   const session = issueSession(user.id);
   setSessionCookie(reply, req, session.token, session.maxAge);
-  return { user: { id: user.id, username: user.username } };
+  return { user: { id: user.id, username: user.username, role: user.role } };
 });
 
 app.post('/api/auth/logout', async (req, reply) => {
@@ -315,11 +332,76 @@ app.post('/api/auth/logout', async (req, reply) => {
   return { ok: true };
 });
 
-app.get('/api/auth/me', { preHandler: requireAuth }, async (req) => ({
+/* ------------------------------------------------------------------ */
+/* registration requests                                               */
+/* ------------------------------------------------------------------ */
+
+app.post('/api/register', async (req, reply) => {
+  if (!registrationAllowed(req)) {
+    return fail(reply, 429, 'RATE_LIMITED', '提交太频繁，请稍后再试。');
+  }
+  if (countRegistrationsSince(24) >= 50) {
+    return fail(reply, 429, 'REGISTRATION_FULL', '今日申请已满，请明天再试。');
+  }
+  recordRegistrationAttempt(req);
+  const body = req.body || {};
+  if (String(body.website || '').trim()) {
+    return fail(reply, 400, 'INVALID_REQUEST', '申请信息无效。');
+  }
+  const username = validateUsername(body.username);
+  if (!username.ok) return fail(reply, 400, 'INVALID_USERNAME', username.message);
+  const password = validatePassword(body.password);
+  if (!password.ok) return fail(reply, 400, 'INVALID_PASSWORD', password.message);
+  const reason = String(body.reason || '').trim().slice(0, 500);
+  const contact = String(body.contact || '').trim().slice(0, 200);
+  if (getUserByUsername(username.value) || pendingRegistrationExists(username.value)) {
+    return fail(reply, 409, 'USERNAME_UNAVAILABLE', '这个用户名已经有账号或正在审批，请换一个。');
+  }
+
+  let request;
+  try {
+    request = createRegistrationRequest({
+      username: username.value,
+      passwordHash: hashPassword(password.value),
+      reason,
+      contact,
+      ip: String(req.ip || req.socket?.remoteAddress || '').slice(0, 64),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
+    });
+  } catch (error) {
+    req.log.error(error);
+    return fail(reply, 500, 'REGISTER_FAILED', '申请提交失败，请稍后再试。');
+  }
+  req.log.info({ username: request.username, requestId: request.id }, 'registration requested');
+  return { ok: true, message: '申请已提交，管理员审批通过后即可使用该用户名和密码登录。' };
+});
+
+app.get('/api/admin/registrations', { preHandler: requireAuth }, async (req) => {
+  const status = String(req.query?.status || 'pending');
+  const requests = listRegistrationRequests(status === 'all' ? '' : status);
+  return { requests };
+});
+
+app.post('/api/admin/registrations/:id/approve', { preHandler: requireAuth }, async (req, reply) => {
+  const result = approveRegistrationRequest(req.params.id);
+  if (result.error === 'NOT_FOUND') return fail(reply, 404, 'NOT_FOUND', '申请不存在。');
+  if (result.error === 'ALREADY_REVIEWED') return fail(reply, 409, 'ALREADY_REVIEWED', '这条申请已经处理过了。');
+  if (result.error === 'USERNAME_TAKEN') return fail(reply, 409, 'USERNAME_TAKEN', '用户名已经被占用，无法通过。');
+  req.log.info({ username: result.user.username, requestId: req.params.id }, 'registration approved');
+  return { ok: true, user: result.user };
+});
+
+app.post('/api/admin/registrations/:id/reject', { preHandler: requireAuth }, async (req, reply) => {
+  const ok = rejectRegistrationRequest(req.params.id);
+  if (!ok) return fail(reply, 404, 'NOT_FOUND', '申请不存在或已经处理过了。');
+  return { ok: true };
+});
+
+app.get('/api/auth/me', { preHandler: requireUser }, async (req) => ({
   user: req.user,
 }));
 
-app.post('/api/auth/password', { preHandler: requireAuth }, async (req, reply) => {
+app.post('/api/auth/password', { preHandler: requireUser }, async (req, reply) => {
   const current = String(req.body?.currentPassword || '');
   const next = validatePassword(req.body?.newPassword);
   if (!next.ok) return fail(reply, 400, 'INVALID_PASSWORD', next.message);
@@ -333,7 +415,7 @@ app.post('/api/auth/password', { preHandler: requireAuth }, async (req, reply) =
   return { ok: true };
 });
 
-app.patch('/api/auth/account', { preHandler: requireAuth }, async (req, reply) => {
+app.patch('/api/auth/account', { preHandler: requireUser }, async (req, reply) => {
   const username = validateUsername(req.body?.username);
   if (!username.ok) return fail(reply, 400, 'INVALID_USERNAME', username.message);
   const current = String(req.body?.currentPassword || '');
@@ -395,6 +477,53 @@ app.get('/api/public/search', async (req) => {
   const q = String(req.query?.q || '').trim();
   if (!q) return { query: '', results: [] };
   return { query: q, results: searchPublicPages(q, 30) };
+});
+
+/* ------------------------------------------------------------------ */
+/* member read-only portal                                             */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/member/kb', { preHandler: requireUser }, async (req) => ({
+  docs: listMemberKbDocs({
+    q: String(req.query?.q || '').trim(),
+    kind: String(req.query?.kind || ''),
+    limit: 300,
+  }),
+}));
+
+app.get('/api/member/kb/:id', { preHandler: requireUser }, async (req, reply) => {
+  const doc = getMemberKbDoc(req.params.id);
+  if (!doc) return fail(reply, 404, 'NOT_FOUND', '条目不存在或未对成员开放。');
+  return { doc };
+});
+
+app.get('/api/member/assets', { preHandler: requireUser }, async () => {
+  const publicPages = new Map(listPublicPageMeta().map((page) => [page.id, page.title]));
+  const assetMap = new Map();
+  if (publicPages.size) {
+    const rows = db.prepare('SELECT id, title, blocks FROM pages').all();
+    const pattern = /\/api\/(?:public\/)?assets\/([0-9a-f-]{36})/gi;
+    for (const row of rows) {
+      if (!publicPages.has(row.id)) continue;
+      let blocks = [];
+      try { blocks = JSON.parse(row.blocks || '[]'); } catch { blocks = []; }
+      for (const match of JSON.stringify(blocks).matchAll(pattern)) {
+        assetMap.set(match[1], publicPages.get(row.id));
+      }
+    }
+  }
+  const assets = listAssets(1000)
+    .filter((asset) => assetMap.has(asset.id) && String(asset.mime).startsWith('image/'))
+    .map((asset) => ({
+      id: asset.id,
+      url: `/api/public/assets/${asset.id}`,
+      name: asset.original_name,
+      mime: asset.mime,
+      size: asset.size,
+      pageTitle: assetMap.get(asset.id),
+      createdAt: asset.created_at,
+    }));
+  return { assets };
 });
 
 /* ------------------------------------------------------------------ */
@@ -704,6 +833,7 @@ app.post('/api/kb', { preHandler: requireAuth }, async (req) => {
     title: body.title,
     kind: body.kind || 'recipe',
     status: body.status || 'draft',
+    visibility: body.visibility || 'admin',
     summary: body.summary || '',
     bodyMd: body.bodyMd ?? body.body ?? '',
     tool: body.tool || '',
@@ -723,6 +853,7 @@ app.patch('/api/kb/:id', { preHandler: requireAuth }, async (req, reply) => {
     title: body.title,
     kind: body.kind,
     status: body.status,
+    visibility: body.visibility,
     summary: body.summary,
     bodyMd: body.bodyMd ?? body.body,
     tool: body.tool,
@@ -878,6 +1009,26 @@ function assetIdFromUrl(value) {
   return match ? match[1] : '';
 }
 
+function publicAssetIds() {
+  const ids = new Set();
+  const addUrl = (value) => {
+    const id = assetIdFromUrl(value);
+    if (id) ids.add(id);
+  };
+  addUrl(getSiteSettings().logoUrl);
+  for (const module of listPublicModules()) addUrl(module.iconUrl);
+  const publicPages = new Set(listPublicPageMeta().map((page) => page.id));
+  if (publicPages.size) {
+    const rows = db.prepare('SELECT id, blocks FROM pages').all();
+    const pattern = /\/api\/(?:public\/)?assets\/([0-9a-f-]{36})/gi;
+    for (const row of rows) {
+      if (!publicPages.has(row.id)) continue;
+      for (const match of String(row.blocks || '').matchAll(pattern)) ids.add(match[1]);
+    }
+  }
+  return ids;
+}
+
 function collectAssetUsage() {
   const usage = new Map();
   const addUsage = (assetId, kind, label) => {
@@ -972,6 +1123,9 @@ app.post('/api/assets/delete', { preHandler: requireAuth }, async (req, reply) =
 function sendAsset(req, reply, publicCache = false) {
   const asset = getAsset(req.params.id);
   if (!asset) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  if (publicCache && !publicAssetIds().has(asset.id)) {
+    return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  }
   const file = path.join(UPLOAD_DIR, asset.filename);
   if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件已丢失。');
 

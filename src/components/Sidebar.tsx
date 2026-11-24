@@ -22,6 +22,7 @@ import {
   Settings,
   Sparkles,
   Trash2,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -318,6 +319,14 @@ export function Sidebar({
           >
             <Images size={17} />
             <span>素材库</span>
+          </button>
+          <button
+            type="button"
+            className={cn('nav-item', location.pathname.startsWith('/requests') && 'is-active')}
+            onClick={() => go('/requests')}
+          >
+            <UserPlus size={17} />
+            <span>注册申请</span>
           </button>
         </nav>
 

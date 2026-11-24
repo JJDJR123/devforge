@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useApp } from './state/AppContext';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthScreen } from './components/AuthScreen';
+import { ApplyScreen } from './components/ApplyScreen';
 import { BootError } from './components/BootError';
 import { Shell } from './components/Shell';
 import { PublicApp } from './public/PublicApp';
@@ -17,10 +18,11 @@ function readEntryMode(): EntryMode {
 }
 
 export function App() {
-  const { phase, data } = useApp();
+  const { phase, data, user } = useApp();
   const location = useLocation();
   const [entryMode, setEntryMode] = useState<EntryMode>(readEntryMode);
   const isAdminEntry = location.pathname.replace(/\/+$/, '') === '/admin';
+  const isApplyEntry = location.pathname.replace(/\/+$/, '') === '/apply';
   const preview = typeof sessionStorage !== 'undefined'
     && sessionStorage.getItem('devforge.preview') === '1';
 
@@ -40,8 +42,13 @@ export function App() {
 
   if (phase === 'loading') return <SplashScreen />;
   if (phase === 'error') return <BootError />;
+  if (isApplyEntry) return <ApplyScreen />;
   if (phase === 'setup') {
     return <AuthScreen mode="setup" onLoginSuccess={() => rememberEntry('admin')} />;
+  }
+  if (user?.role === 'reader' && !isApplyEntry) {
+    if (isAdminEntry) return <Navigate to="/" replace />;
+    return <PublicApp member />;
   }
   if (phase === 'login') {
     if (isAdminEntry) {

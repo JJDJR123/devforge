@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -183,6 +184,13 @@ export function AuthScreen({
               <button type="button" className="btn btn-ghost" onClick={onGuest}>
                 <Eye size={16} /> 以游客身份进入
               </button>
+              <Link className="link-button auth-apply-link" to="/apply">申请成员账号</Link>
+            </div>
+          ) : null}
+
+          {!isSetup && !allowGuest ? (
+            <div className="auth-guest-entry">
+              <Link className="link-button" to="/apply">申请成员账号</Link>
             </div>
           ) : null}
 
@@ -212,7 +220,7 @@ export function AuthScreen({
         </div>
 
         <div className="auth-legal">
-          <ShieldCheck size={13} /> 单管理员 · 游客只读 · 不开放注册 · 数据保存在你自己的服务器
+          <ShieldCheck size={13} /> 单管理员 · 游客只读 · 成员申请制 · 数据保存在你自己的服务器
           {icp?.number ? (
             <a href={icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
               {icp.number}
