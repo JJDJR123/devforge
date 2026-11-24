@@ -151,6 +151,7 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
     <div className={cn('app-shell public-shell', sidebarOpen && 'sidebar-open')}>
       <PublicSidebar
         data={data}
+        member={member}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onOpenSearch={() => setSearchOpen(true)}
@@ -190,18 +191,6 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
               </button>
             ) : member ? (
               <div className="public-member-actions">
-                <button type="button" className="public-member-link" onClick={() => navigate('/kb')}>
-                  <BookOpen size={13} /> 知识库
-                </button>
-                <button type="button" className="public-member-link" onClick={() => navigate('/assets')}>
-                  <Images size={13} /> 素材库
-                </button>
-                <button type="button" className="public-member-link" onClick={() => navigate('/chat')}>
-                  <MessageCircle size={13} /> 聊天室
-                </button>
-                <button type="button" className="public-member-link" onClick={() => navigate('/mailbox')}>
-                  <Inbox size={13} /> 信箱
-                </button>
                 <span className="public-topbar-badge"><Eye size={12} /> 成员 · 只读</span>
                 <button type="button" className="public-member-link" onClick={() => { void handleLogout(); }}>
                   <LogOut size={13} /> 退出
@@ -250,11 +239,13 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
 
 function PublicSidebar({
   data,
+  member,
   open,
   onClose,
   onOpenSearch,
 }: {
   data: PublicBootstrap;
+  member: boolean;
   open: boolean;
   onClose: () => void;
   onOpenSearch: () => void;
@@ -383,8 +374,8 @@ function PublicSidebar({
       </div>
 
       <div className="public-side-label">
-        <span><Globe2 size={12} /> 公开学习舱</span>
-        <em>GUEST / READ ONLY</em>
+        <span><Globe2 size={12} /> {member ? '成员学习舱' : '公开学习舱'}</span>
+        <em>{member ? 'MEMBER / READ ONLY' : 'GUEST / READ ONLY'}</em>
       </div>
 
       <div className="sidebar-actions">
@@ -396,6 +387,26 @@ function PublicSidebar({
       </div>
 
       <nav className="sidebar-nav" aria-label="公开导航">
+        {member ? (
+          <>
+            <button type="button" className={cn('nav-item', location.pathname.startsWith('/kb') && 'is-active')} onClick={() => go('/kb')}>
+              <BookOpen size={16} />
+              <span>成员知识库</span>
+            </button>
+            <button type="button" className={cn('nav-item', location.pathname.startsWith('/assets') && 'is-active')} onClick={() => go('/assets')}>
+              <Images size={16} />
+              <span>成员素材库</span>
+            </button>
+            <button type="button" className={cn('nav-item', location.pathname.startsWith('/chat') && 'is-active')} onClick={() => go('/chat')}>
+              <MessageCircle size={16} />
+              <span>聊天室</span>
+            </button>
+            <button type="button" className={cn('nav-item', location.pathname.startsWith('/mailbox') && 'is-active')} onClick={() => go('/mailbox')}>
+              <Inbox size={16} />
+              <span>信箱</span>
+            </button>
+          </>
+        ) : null}
         <button type="button" className={cn('nav-item', location.pathname === '/' && 'is-active')} onClick={() => go('/')}>
           <Globe2 size={16} />
           <span>公开首页</span>
@@ -419,7 +430,7 @@ function PublicSidebar({
       <div className="sidebar-foot public-sidebar-foot">
         <div className="public-sidebar-note">
           <Eye size={13} />
-          <span>游客浏览模式</span>
+          <span>{member ? '成员只读模式' : '游客浏览模式'}</span>
         </div>
         <div className="public-sidebar-note is-muted">
           <FileText size={12} />
