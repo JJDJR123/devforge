@@ -1587,7 +1587,7 @@ function mapFriendUser(row, note = '') {
 }
 
 function friendRowUser(id) {
-  return db.prepare('SELECT id, username, role, status FROM users WHERE id = ?').get(id) || null;
+  return db.prepare('SELECT id, username, role, status, note FROM users WHERE id = ?').get(id) || null;
 }
 
 export function listFriendData(userId) {
@@ -1803,7 +1803,7 @@ export function listAdminDmConversations() {
     if (!a || !b) continue;
     result.push({
       key,
-      users: [mapFriendUser(a), mapFriendUser(b)],
+      users: [mapFriendUser(a, a.note), mapFriendUser(b, b.note)],
       lastMessage: last.body || (last.attachment_id ? '[图片]' : ''),
       lastAt: last.created_at,
     });

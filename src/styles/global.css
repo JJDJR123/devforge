@@ -3743,3 +3743,5 @@ kbd {
 .update-date { margin-bottom: 7px; color: var(--accent); font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.06em; }
 
 .chat-note { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted) !important; border: 1px dashed var(--line) !important; border-radius: 4px !important; padding: 1px 5px !important; background: transparent !important; }
+
+.admin-dm-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 7.5px; }

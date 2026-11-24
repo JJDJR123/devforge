@@ -830,6 +830,9 @@ function cleanupDmAttachments() {
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   for (const asset of listDmAssetsBefore(cutoff)) {
     markDmAttachmentCleared(asset.id);
+    try {
+      fs.unlinkSync(path.join(UPLOAD_DIR, asset.filename));
+    } catch { /* ignore missing file */ }
     deleteAsset(asset.id);
   }
 }
@@ -1506,20 +1509,22 @@ function assetCategory(usedBy) {
 
 app.get('/api/assets', { preHandler: requireAuth }, async () => {
   const usage = collectAssetUsage();
-  const assets = listAssets(1000).map((asset) => {
-    const usedBy = usage.get(asset.id) || { site: false, modules: [], pages: [] };
-    return {
-      id: asset.id,
-      url: `/api/assets/${asset.id}`,
-      name: asset.original_name,
-      mime: asset.mime,
-      size: asset.size,
-      purpose: asset.purpose || 'unknown',
-      category: assetCategory(usedBy),
-      usedBy,
-      createdAt: asset.created_at,
-    };
-  });
+  const assets = listAssets(1000)
+    .filter((asset) => asset.purpose !== 'dm')
+    .map((asset) => {
+      const usedBy = usage.get(asset.id) || { site: false, modules: [], pages: [] };
+      return {
+        id: asset.id,
+        url: `/api/assets/${asset.id}`,
+        name: asset.original_name,
+        mime: asset.mime,
+        size: asset.size,
+        purpose: asset.purpose || 'unknown',
+        category: assetCategory(usedBy),
+        usedBy,
+        createdAt: asset.created_at,
+      };
+    });
 
   return {
     assets,
@@ -1542,6 +1547,10 @@ app.post('/api/assets/delete', { preHandler: requireAuth }, async (req, reply) =
     const asset = getAsset(id);
     if (!asset) {
       skipped.push({ id, reason: 'NOT_FOUND' });
+      continue;
+    }
+    if (asset.purpose === 'dm') {
+      skipped.push({ id, reason: 'PRIVATE_CHAT', usedBy: { site: false, modules: [], pages: [] } });
       continue;
     }
     const usedBy = usage.get(id) || { site: false, modules: [], pages: [] };

@@ -53,6 +53,9 @@ export function AdminDmPanel() {
                   onClick={() => setSelected(conversation)}
                 >
                   <strong>{conversation.users.map((user) => user.username).join(' ↔ ')}</strong>
+                  {conversation.users.some((user) => user.note) ? (
+                    <small>{conversation.users.filter((user) => user.note).map((user) => `${user.username}: ${user.note}`).join(' · ')}</small>
+                  ) : null}
                   <span>{conversation.lastMessage || '[图片]'}</span>
                   <time>{new Date(conversation.lastAt).toLocaleString('zh-CN')}</time>
                 </button>
