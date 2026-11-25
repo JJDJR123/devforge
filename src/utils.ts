@@ -135,6 +135,32 @@ export function totalChars(blocks: unknown): number {
   return extractPlainText(blocks).replace(/\s/g, '').length;
 }
 
+export function firstImageUrl(blocks: unknown): string | null {
+  if (!Array.isArray(blocks)) return null;
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue;
+    const record = block as { type?: string; props?: Record<string, unknown>; children?: unknown };
+    if (record.type === 'image' && typeof record.props?.url === 'string') return record.props.url;
+    const child = firstImageUrl(record.children);
+    if (child) return child;
+  }
+  return null;
+}
+
+export function insertAtSelection(
+  value: string,
+  start: number,
+  end: number,
+  insert: string,
+): { value: string; cursor: number } {
+  const from = Math.max(0, Math.min(value.length, start));
+  const to = Math.max(from, Math.min(value.length, end));
+  return {
+    value: `${value.slice(0, from)}${insert}${value.slice(to)}`,
+    cursor: from + insert.length,
+  };
+}
+
 export function countTodos(blocks: unknown): { total: number; done: number } {
   let total = 0;
   let done = 0;

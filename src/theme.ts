@@ -70,13 +70,11 @@ export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme 
     ? String(value?.accent).toLowerCase()
     : '';
   // Existing installs were initialized with the old fluorescent-green Forge
-  // theme. Upgrade only that untouched legacy default; explicit custom accents
-  // are preserved.
+  // theme. Upgrade only the accent; never silently discard a user's radius,
+  // grid, or glow settings.
   const legacyForge = preset === 'forge' && requestedAccent === '#c8f76a';
   const accent = legacyForge ? '#f16436' : (requestedAccent || THEME_DEFAULTS.accent);
-  const radius = legacyForge
-    ? 6
-    : Math.min(28, Math.max(4, Number(value?.radius ?? THEME_DEFAULTS.radius) || THEME_DEFAULTS.radius));
+  const radius = Math.min(28, Math.max(4, Number(value?.radius ?? THEME_DEFAULTS.radius) || THEME_DEFAULTS.radius));
   const fontScale = Math.min(120, Math.max(85, Number(value?.fontScale ?? THEME_DEFAULTS.fontScale) || 100));
   return {
     preset,
@@ -84,8 +82,8 @@ export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme 
     radius,
     fontScale,
     density: value?.density === 'compact' ? 'compact' : 'comfortable',
-    grid: legacyForge ? false : value?.grid !== false,
-    glow: legacyForge ? false : value?.glow !== false,
+    grid: value?.grid !== false,
+    glow: value?.glow !== false,
   };
 }
 

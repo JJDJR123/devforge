@@ -5,7 +5,7 @@ import type { ChatMessage } from '../types';
 import { useApp } from '../state/AppContext';
 import { useToast } from '../components/Toast';
 import { ChatEmojiPicker } from '../components/ChatEmojiPicker';
-import { getErrorMessage } from '../utils';
+import { getErrorMessage, insertAtSelection } from '../utils';
 
 export function ChatView({ member = false }: { member?: boolean }) {
   const { user } = useApp();
@@ -16,6 +16,7 @@ export function ChatView({ member = false }: { member?: boolean }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   async function load() {
     try {
@@ -54,6 +55,18 @@ export function ChatView({ member = false }: { member?: boolean }) {
     }
   }
 
+  function insertEmoji(emoji: string) {
+    const area = composerRef.current;
+    const start = area?.selectionStart ?? text.length;
+    const end = area?.selectionEnd ?? start;
+    const next = insertAtSelection(text, start, end, emoji);
+    setText(next.value);
+    requestAnimationFrame(() => {
+      area?.focus();
+      area?.setSelectionRange(next.cursor, next.cursor);
+    });
+  }
+
   return (
     <div className={`member-view chat-view${member ? ' is-member' : ''}`}>
       <header className="member-head">
@@ -86,6 +99,7 @@ export function ChatView({ member = false }: { member?: boolean }) {
         </div>
         <div className="chat-compose">
           <textarea
+            ref={composerRef}
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"
@@ -98,7 +112,7 @@ export function ChatView({ member = false }: { member?: boolean }) {
               }
             }}
           />
-          <ChatEmojiPicker onPick={(emoji) => setText((value) => `${value}${emoji}`)} disabled={sending} />
+          <ChatEmojiPicker onPick={insertEmoji} disabled={sending} />
           <button type="button" className="btn btn-primary" onClick={() => { void send(); }} disabled={sending || !text.trim()}>
             {sending ? <Loader2 size={15} className="spin" /> : <Send size={15} />} 发送
           </button>

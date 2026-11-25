@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    DEVFORGE · 独立游戏开发学习舱
    Design tokens, base UI, shell, auth, dashboard, module, page, settings
    ========================================================================== */
@@ -790,14 +790,14 @@ svg { display: block; }
    -------------------------------------------------------------------------- */
 
 .auth-layout {
-  --auth-bg: #070a08;
-  --auth-panel: #0d120e;
-  --auth-line: rgba(214, 240, 199, 0.10);
+  --auth-bg: #111111;
+  --auth-panel: #161616;
+  --auth-line: rgba(255, 255, 255, 0.09);
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(440px, 0.88fr);
   background: var(--auth-bg);
-  color: #e9f0e3;
+  color: #f2f2ee;
   overflow-y: auto;
 }
 .auth-visual {
@@ -808,20 +808,12 @@ svg { display: block; }
   flex-direction: column;
   justify-content: space-between;
   gap: 32px;
-  background:
-    radial-gradient(780px 560px at 8% 0%, rgba(var(--accent-rgb), 0.10), transparent 60%),
-    radial-gradient(600px 480px at 100% 100%, rgba(94, 234, 212, 0.055), transparent 60%),
-    #070a08;
+  background: #111111;
   border-right: 1px solid var(--auth-line);
 }
 .auth-visual-grid {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(241, 100, 54, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(241, 100, 54, 0.055) 1px, transparent 1px);
-  background-size: 58px 58px;
-  mask-image: linear-gradient(to bottom, black, transparent 72%);
   pointer-events: none;
 }
 .auth-visual::after {
@@ -841,7 +833,7 @@ svg { display: block; }
   font-family: var(--font-mono);
   font-size: 8.5px;
   letter-spacing: 0.14em;
-  color: #5e6d5b;
+  color: #777777;
   padding-top: 4px;
 }
 .auth-hero { position: relative; z-index: 1; max-width: 660px; }
@@ -906,7 +898,7 @@ svg { display: block; }
   font-family: var(--font-mono);
   font-size: 8.5px;
   letter-spacing: 0.08em;
-  color: #5e6d5b;
+  color: #777777;
 }
 .terminal-body {
   padding: 12px 15px 14px;
@@ -1847,11 +1839,10 @@ svg { display: block; }
   padding: clamp(24px, 3vw, 38px);
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) + 8px);
-  background:
-    radial-gradient(600px 300px at 0% 0%, color-mix(in srgb, var(--module-accent) 12%, transparent), transparent 62%),
-    linear-gradient(135deg, var(--surface), var(--bg-soft));
+  background: linear-gradient(135deg, var(--surface), var(--bg-soft));
 }
 .module-hero-glow {
+  display: none;
   position: absolute;
   left: -80px;
   top: -120px;
@@ -2738,10 +2729,8 @@ kbd {
   --module-accent: var(--accent);
   padding: 15px;
   border: 1px solid var(--line);
-  border-radius: 11px;
-  background:
-    radial-gradient(220px 120px at 100% 0%, color-mix(in srgb, var(--module-accent) 10%, transparent), transparent 70%),
-    var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--surface-2);
   min-height: 112px;
 }
 .module-preview-icon {
@@ -3432,7 +3421,7 @@ kbd {
 .asset-title-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .asset-title-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .asset-badge { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.03em; border: 1px solid var(--line); color: var(--muted); }
-.asset-badge.is-note { color: var(--cyan); border-color: rgba(94, 234, 212, 0.25); }
+.asset-badge.is-note { color: var(--cyan); border-color: rgba(var(--accent-rgb), 0.25); }
 .asset-badge.is-module_icon { color: var(--accent); border-color: var(--accent-line); }
 .asset-badge.is-site_logo { color: #f7c86a; border-color: rgba(247, 200, 106, 0.3); }
 .asset-badge.is-orphan { color: var(--danger); border-color: rgba(255, 123, 114, 0.25); }
@@ -3490,7 +3479,7 @@ kbd {
 .request-head strong { font-size: 13px; }
 .request-status { padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--faint); font-family: var(--font-mono); font-size: 7px; }
 .request-status.is-pending { color: #f7c86a; border-color: rgba(247, 200, 106, 0.3); }
-.request-status.is-approved { color: var(--cyan); border-color: rgba(94, 234, 212, 0.25); }
+.request-status.is-approved { color: var(--cyan); border-color: rgba(var(--accent-rgb), 0.25); }
 .request-status.is-rejected { color: var(--danger); border-color: rgba(255, 123, 114, 0.25); }
 .request-reason { color: var(--text-soft); font-size: 11px; line-height: 1.5; }
 .request-meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--faint); font-family: var(--font-mono); font-size: 8px; }

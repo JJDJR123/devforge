@@ -18,7 +18,7 @@ import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
 import { ChatEmojiPicker } from '../components/ChatEmojiPicker';
 import { compressImageForUpload } from '../imageCompression';
-import { getErrorMessage } from '../utils';
+import { getErrorMessage, insertAtSelection } from '../utils';
 
 const TEN_MB = 10 * 1024 * 1024;
 
@@ -42,6 +42,7 @@ export function FriendsView({ member = false }: { member?: boolean }) {
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   async function loadFriends() {
     try {
@@ -242,6 +243,18 @@ export function FriendsView({ member = false }: { member?: boolean }) {
     }
   }
 
+  function insertEmoji(emoji: string) {
+    const area = composerRef.current;
+    const start = area?.selectionStart ?? text.length;
+    const end = area?.selectionEnd ?? start;
+    const next = insertAtSelection(text, start, end, emoji);
+    setText(next.value);
+    requestAnimationFrame(() => {
+      area?.focus();
+      area?.setSelectionRange(next.cursor, next.cursor);
+    });
+  }
+
   const currentRole = user?.role || (member ? 'reader' : 'admin');
 
   return (
@@ -377,8 +390,9 @@ export function FriendsView({ member = false }: { member?: boolean }) {
                     {uploading ? <Loader2 size={16} className="spin" /> : <ImagePlus size={16} />}
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleImage(file); event.target.value = ''; }} />
-                  <ChatEmojiPicker onPick={(emoji) => setText((value) => `${value}${emoji}`)} disabled={sending} />
+                  <ChatEmojiPicker onPick={insertEmoji} disabled={sending} />
                   <textarea
+                    ref={composerRef}
                     value={text}
                     onChange={(event) => setText(event.target.value)}
                     onPaste={handlePaste}

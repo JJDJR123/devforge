@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { Layers, Loader2, Upload, X } from 'lucide-react';
 import type { Module } from '../types';
 import { api } from '../api';

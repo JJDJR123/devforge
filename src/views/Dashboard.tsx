@@ -21,22 +21,10 @@ import { DropdownMenu } from '../components/DropdownMenu';
 import { ModuleDialog } from '../components/ModuleDialog';
 import { ModuleIconContent } from '../components/ModuleIcon';
 import type { Module, PageMeta } from '../types';
-import { extractPlainText, formatNumber, formatRelativeTime } from '../utils';
+import { extractPlainText, firstImageUrl, formatNumber, formatRelativeTime, todayLabel } from '../utils';
 import '../styles/forge-dashboard.css';
 
 type PageDetail = { excerpt: string; cover: string | null };
-
-function firstImageUrl(blocks: unknown): string | null {
-  if (!Array.isArray(blocks)) return null;
-  for (const block of blocks) {
-    if (!block || typeof block !== 'object') continue;
-    const record = block as { type?: string; props?: Record<string, unknown>; children?: unknown };
-    if (record.type === 'image' && typeof record.props?.url === 'string') return record.props.url;
-    const child = firstImageUrl(record.children);
-    if (child) return child;
-  }
-  return null;
-}
 
 function moduleIcon(module: Module) {
   return (
@@ -75,6 +63,7 @@ export function Dashboard() {
     () => [...(data?.modules || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     [data?.modules],
   );
+  const topModules = useMemo(() => modules.filter((module) => !module.parentId), [modules]);
   const modulesById = new Map(modules.map((module) => [module.id, module]));
   const featured = recent[0];
   const side = recent.slice(1);
@@ -164,7 +153,7 @@ export function Dashboard() {
     <div className="fd-dashboard">
       <header className="fd-head">
         <div>
-          <span className="fd-eyebrow"><Sparkles size={12} /> WORKBENCH / 工作台</span>
+          <span className="fd-eyebrow"><Sparkles size={12} /> WORKBENCH / 工作台 · {todayLabel()}</span>
           <h1>继续建造。</h1>
           <p>把想做的游戏，拆成今天能完成的一步。</p>
         </div>
@@ -242,7 +231,7 @@ export function Dashboard() {
           <button type="button" className="fd-text-link" onClick={() => setModuleDialog({ open: true, module: null })}><Plus size={14} /> 新建模块</button>
         </div>
 
-        {modules.length === 0 ? (
+        {topModules.length === 0 ? (
           <div className="fd-empty">
             <FolderPlus size={26} />
             <h3>还没有模块</h3>
@@ -253,7 +242,7 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="fd-module-grid">
-            {modules.map((module) => {
+            {topModules.map((module) => {
               const modulePages = pagesByModule.get(module.id) || [];
               const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
               const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
@@ -267,6 +256,7 @@ export function Dashboard() {
                   tabIndex={0}
                   onClick={() => navigate(`/module/${module.id}`)}
                   onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       navigate(`/module/${module.id}`);
@@ -316,7 +306,11 @@ export function Dashboard() {
 
       <footer className="fd-footer">
         <span>DEVFORGE / BUILD {data.system.version}</span>
-        <span>做小，做完，再做下一个。</span>
+        <span>{data.system.icp?.number ? (
+          <a href={data.system.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
+            {data.system.icp.number}
+          </a>
+        ) : '做小，做完，再做下一个。'}</span>
       </footer>
 
       <ModuleDialog

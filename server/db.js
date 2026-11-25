@@ -378,7 +378,7 @@ function migrate() {
         const theme = JSON.parse(savedTheme.value);
         if (theme?.preset === 'forge' && String(theme.accent || '').toLowerCase() === '#c8f76a') {
           db.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = 'theme'")
-            .run(JSON.stringify({ ...theme, accent: '#f16436', radius: 6, grid: false, glow: false }), now());
+            .run(JSON.stringify({ ...theme, accent: '#f16436' }), now());
         }
       } catch { /* keep malformed legacy theme untouched */ }
     }

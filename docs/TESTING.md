@@ -1,5 +1,13 @@
 # 测试规程
 
+## 本轮记录
+
+Forge UI 统一、阅读者总览和 emoji 的测试结果见：
+
+```text
+docs/TESTING-RECORD-2026-11-25-forge.md
+```
+
 ## 判定标准
 
 ### 小功能

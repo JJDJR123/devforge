@@ -177,7 +177,12 @@ export function Sidebar({
     }
     const from = topModules.findIndex((module) => module.id === sourceId);
     const to = topModules.findIndex((module) => module.id === targetId);
-    if (from < 0 || to < 0) return;
+    if (from < 0 || to < 0) {
+      draggedModuleRef.current = '';
+      setDraggedModuleId('');
+      setDragOverModuleId('');
+      return;
+    }
     const next = [...topModules];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);

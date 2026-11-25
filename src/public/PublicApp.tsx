@@ -28,6 +28,7 @@ import { BrandLockup, BrandMark } from '../components/BrandMark';
 import { ModuleIconContent } from '../components/ModuleIcon';
 import { SearchDialog } from '../components/SearchDialog';
 import { PublicHome } from './PublicHome';
+import { MemberHome } from './MemberHome';
 import { PublicModule } from './PublicModule';
 import { PublicPage } from './PublicPage';
 import { MemberKbView } from '../views/MemberKbView';
@@ -173,7 +174,7 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
               <Menu size={19} />
             </button>
             <div className="topbar-crumb">
-              <span className="crumb-root">公开站点</span>
+              <span className="crumb-root">{member ? '成员空间' : '公开站点'}</span>
               <span className="crumb-sep">/</span>
               <strong>{title}</strong>
             </div>
@@ -212,7 +213,12 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
 
         <main className="app-view" key={location.pathname}>
           <Routes>
-            <Route path="/" element={<PublicHome data={data} onOpenSearch={() => setSearchOpen(true)} />} />
+            <Route
+              path="/"
+              element={member
+                ? <MemberHome data={data} onOpenSearch={() => setSearchOpen(true)} />
+                : <PublicHome data={data} onOpenSearch={() => setSearchOpen(true)} />}
+            />
             <Route path="/module/:moduleId" element={<PublicModule data={data} />} />
             <Route path="/page/:pageId" element={<PublicPage data={data} />} />
             {member ? <Route path="/kb" element={<MemberKbView />} /> : null}
@@ -225,8 +231,8 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             <Route path="*" element={<PublicMissing />} />
           </Routes>
           <footer className="public-global-foot">
-            <span>{data.site.name} · 公开学习舱</span>
-            <span><Eye size={11} /> 游客浏览 · 只读 · 内容由管理员维护</span>
+            <span>{data.site.name} · {member ? '成员空间' : '公开学习舱'}</span>
+            <span><Eye size={11} /> {member ? '成员浏览' : '游客浏览'} · 只读 · 内容由管理员维护</span>
             {data.icp?.number ? (
               <a href={data.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
                 {data.icp.number}
