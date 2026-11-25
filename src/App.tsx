@@ -7,6 +7,7 @@ import { ApplyScreen } from './components/ApplyScreen';
 import { BootError } from './components/BootError';
 import { Shell } from './components/Shell';
 import { PublicApp } from './public/PublicApp';
+import { WorksPage } from './public/WorksPage';
 
 const ENTRY_KEY = 'devforge.entry';
 type EntryMode = 'admin' | 'guest' | null;
@@ -23,6 +24,7 @@ export function App() {
   const [entryMode, setEntryMode] = useState<EntryMode>(readEntryMode);
   const isAdminEntry = location.pathname.replace(/\/+$/, '') === '/admin';
   const isApplyEntry = location.pathname.replace(/\/+$/, '') === '/apply';
+  const isWorksEntry = location.pathname.replace(/\/+$/, '') === '/works';
   const isForgePreview = location.pathname.replace(/\/+$/, '') === '/forge-preview';
   const preview = typeof sessionStorage !== 'undefined'
     && sessionStorage.getItem('devforge.preview') === '1';
@@ -43,6 +45,7 @@ export function App() {
 
   if (phase === 'loading') return <SplashScreen />;
   if (phase === 'error') return <BootError />;
+  if (isWorksEntry) return <WorksPage />;
   if (isApplyEntry) return <ApplyScreen />;
   if (phase === 'setup') {
     return <AuthScreen mode="setup" onLoginSuccess={() => rememberEntry('admin')} />;

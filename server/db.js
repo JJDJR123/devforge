@@ -385,6 +385,24 @@ function migrate() {
     db.exec('PRAGMA user_version = 17;');
   }
 
+  if (version < 18) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS portfolio_items (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        filename TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        visible INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_portfolio_created ON portfolio_items(visible, created_at DESC);
+      PRAGMA user_version = 18;
+    `);
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
@@ -1885,6 +1903,70 @@ export function listAssets(limit = 500) {
     ORDER BY created_at DESC
     LIMIT ?
   `).all(Math.min(2000, Math.max(1, Number(limit) || 500)));
+}
+
+/* ------------------------------------------------------------------ */
+/* portfolio downloads                                                 */
+/* ------------------------------------------------------------------ */
+
+function mapPortfolioRow(row, publicView = false) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    filename: publicView ? undefined : row.filename,
+    originalName: row.original_name,
+    mime: row.mime,
+    size: row.size,
+    visible: Boolean(row.visible),
+    createdAt: row.created_at,
+  };
+}
+
+export function listPortfolioItems({ visibleOnly = false } = {}) {
+  const rows = db.prepare(`
+    SELECT * FROM portfolio_items
+    ${visibleOnly ? 'WHERE visible = 1' : ''}
+    ORDER BY created_at DESC
+  `).all();
+  return rows.map((row) => mapPortfolioRow(row));
+}
+
+export function getPortfolioItem(id) {
+  return mapPortfolioRow(db.prepare('SELECT * FROM portfolio_items WHERE id = ?').get(id));
+}
+
+export function getPortfolioRecord(id) {
+  return db.prepare('SELECT * FROM portfolio_items WHERE id = ?').get(id) || null;
+}
+
+export function createPortfolioItem({ title, description, filename, originalName, mime, size, visible = true }) {
+  const id = uid();
+  db.prepare(`
+    INSERT INTO portfolio_items (id, title, description, filename, original_name, mime, size, visible, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, description, filename, originalName, mime, size, visible ? 1 : 0, now());
+  return getPortfolioItem(id);
+}
+
+export function updatePortfolioItem(id, patch) {
+  const fields = [];
+  const values = [];
+  if (typeof patch.title === 'string') { fields.push('title = ?'); values.push(patch.title); }
+  if (typeof patch.description === 'string') { fields.push('description = ?'); values.push(patch.description); }
+  if (typeof patch.visible === 'boolean') { fields.push('visible = ?'); values.push(patch.visible ? 1 : 0); }
+  if (!fields.length) return getPortfolioItem(id);
+  values.push(id);
+  db.prepare(`UPDATE portfolio_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return getPortfolioItem(id);
+}
+
+export function deletePortfolioItem(id) {
+  const row = getPortfolioRecord(id);
+  if (!row) return null;
+  db.prepare('DELETE FROM portfolio_items WHERE id = ?').run(id);
+  return row;
 }
 
 /* ------------------------------------------------------------------ */

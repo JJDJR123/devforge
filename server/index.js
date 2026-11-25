@@ -15,8 +15,11 @@ import {
   ICP_NUMBER,
   MAX_BLOCKS_BYTES,
   MAX_UPLOAD_BYTES,
+  MAX_PORTFOLIO_BYTES,
+  MAX_PORTFOLIO_MB,
   NODE_ENV,
   PORT,
+  PORTFOLIO_DIR,
   UPLOAD_DIR,
 } from './config.js';
 import {
@@ -46,6 +49,12 @@ import {
   createModule,
   createPage,
   createUser,
+  createPortfolioItem,
+  deletePortfolioItem,
+  getPortfolioItem,
+  getPortfolioRecord,
+  listPortfolioItems,
+  updatePortfolioItem,
   databaseSize,
   db,
   deleteAIConversation,
@@ -157,7 +166,7 @@ app.decorateRequest('session', null);
 await app.register(cookie);
 await app.register(multipart, {
   limits: {
-    fileSize: MAX_UPLOAD_BYTES,
+    fileSize: MAX_PORTFOLIO_BYTES,
     files: 1,
     fields: 20,
     parts: 30,
@@ -1422,6 +1431,10 @@ app.post('/api/uploads', { preHandler: requireAuth }, async (req, reply) => {
   }
 
   const stat = fs.statSync(target);
+  if (stat.size > MAX_UPLOAD_BYTES) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB。`);
+  }
   if (!stat.size) {
     try { fs.unlinkSync(target); } catch { /* ignore */ }
     return fail(reply, 400, 'EMPTY_FILE', '文件是空的。');
@@ -1445,6 +1458,133 @@ app.post('/api/uploads', { preHandler: requireAuth }, async (req, reply) => {
     size: stat.size,
     purpose: asset.purpose,
   };
+});
+
+/* ------------------------------------------------------------------ */
+/* portfolio downloads                                                 */
+/* ------------------------------------------------------------------ */
+
+const PORTFOLIO_MIME = [
+  /^application\/pdf$/,
+  /^application\/zip$/,
+  /^application\/x-zip-compressed$/,
+  /^image\/(png|jpeg|webp|gif|avif)$/,
+  /^video\/(mp4|webm)$/,
+];
+
+function portfolioView(item) {
+  return {
+    ...item,
+    filename: undefined,
+    downloadUrl: `/api/works/${item.id}/download`,
+    previewUrl: /^image\//.test(item.mime) ? `/api/works/${item.id}/file` : null,
+  };
+}
+
+function contentDisposition(name) {
+  const ascii = String(name || 'download').replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
+app.get('/api/works', async () => ({
+  items: listPortfolioItems({ visibleOnly: true }).map(portfolioView),
+}));
+
+app.get('/api/works/:id/file', async (req, reply) => {
+  const item = getPortfolioItem(req.params.id);
+  if (!item || !item.visible) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  const file = path.join(PORTFOLIO_DIR, getPortfolioRecord(item.id)?.filename || '');
+  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  return reply.type(item.mime).header('Cache-Control', 'private, max-age=3600').send(fs.createReadStream(file));
+});
+
+app.get('/api/works/:id/download', async (req, reply) => {
+  const item = getPortfolioItem(req.params.id);
+  if (!item || !item.visible) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  const record = getPortfolioRecord(item.id);
+  const file = path.join(PORTFOLIO_DIR, record?.filename || '');
+  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  return reply
+    .type(item.mime)
+    .header('Content-Disposition', contentDisposition(item.originalName))
+    .header('Cache-Control', 'private, max-age=3600')
+    .send(fs.createReadStream(file));
+});
+
+app.get('/api/admin/portfolio', { preHandler: requireAuth }, async () => ({
+  items: listPortfolioItems().map(portfolioView),
+  maxBytes: MAX_PORTFOLIO_BYTES,
+}));
+
+app.post('/api/admin/portfolio', { preHandler: requireAuth }, async (req, reply) => {
+  let part;
+  try {
+    part = await req.file({ limits: { fileSize: MAX_PORTFOLIO_BYTES } });
+  } catch (error) {
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+      return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+    }
+    throw error;
+  }
+  if (!part) return fail(reply, 400, 'NO_FILE', '没有收到文件。');
+  if (!PORTFOLIO_MIME.some((re) => re.test(part.mimetype))) {
+    part.file.resume();
+    return fail(reply, 415, 'UNSUPPORTED_FILE', '作品集只支持 PDF、ZIP、图片和 MP4/WebM。');
+  }
+  const originalName = safeName(part.filename) || 'portfolio-file';
+  const id = crypto.randomUUID();
+  const filename = `${id}${extensionFor(originalName, part.mimetype)}`;
+  const target = path.join(PORTFOLIO_DIR, filename);
+  try {
+    await pipeline(part.file, fs.createWriteStream(target, { flags: 'wx' }));
+  } catch (error) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE' || part.file.truncated) {
+      return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+    }
+    throw error;
+  }
+  if (part.file.truncated) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+  }
+  const stat = fs.statSync(target);
+  if (!stat.size) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 400, 'EMPTY_FILE', '文件是空的。');
+  }
+  const fields = part.fields || {};
+  const title = String(fields.title?.value || originalName).trim().slice(0, 120);
+  const description = String(fields.description?.value || '').trim().slice(0, 2000);
+  const visible = String(fields.visible?.value || 'true') !== 'false';
+  const item = createPortfolioItem({
+    title: title || originalName,
+    description,
+    filename,
+    originalName,
+    mime: part.mimetype,
+    size: stat.size,
+    visible,
+  });
+  return { item: portfolioView(item) };
+});
+
+app.patch('/api/admin/portfolio/:id', { preHandler: requireAuth }, async (req, reply) => {
+  if (!getPortfolioItem(req.params.id)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  const body = req.body || {};
+  const item = updatePortfolioItem(req.params.id, {
+    ...(body.title !== undefined ? { title: String(body.title).trim().slice(0, 120) } : {}),
+    ...(body.description !== undefined ? { description: String(body.description).trim().slice(0, 2000) } : {}),
+    ...(body.visible !== undefined ? { visible: Boolean(body.visible) } : {}),
+  });
+  return { item: portfolioView(item) };
+});
+
+app.delete('/api/admin/portfolio/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const item = deletePortfolioItem(req.params.id);
+  if (!item) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  try { fs.unlinkSync(path.join(PORTFOLIO_DIR, item.filename)); } catch { /* file already gone */ }
+  return { ok: true };
 });
 
 function assetIdFromUrl(value) {

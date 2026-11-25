@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  Briefcase,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -398,6 +399,14 @@ export function Sidebar({
           >
             <Images size={17} />
             <span>素材库</span>
+          </button>
+          <button
+            type="button"
+            className={cn('nav-item', location.pathname.startsWith('/portfolio') && 'is-active')}
+            onClick={() => go('/portfolio')}
+          >
+            <Briefcase size={17} />
+            <span>作品集</span>
           </button>
           <button
             type="button"

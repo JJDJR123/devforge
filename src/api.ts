@@ -5,6 +5,7 @@ import type {
   AIMessage,
   AIStatus,
   AdminUser,
+  PortfolioItem,
   AssetPurpose,
   AssetsDeleteResult,
   AssetsResponse,
@@ -346,6 +347,28 @@ export const api = {
   },
 
   assets: () => request<AssetsResponse>('/api/assets'),
+
+  publicPortfolio: () => request<{ items: PortfolioItem[] }>('/api/works'),
+
+  adminPortfolio: () => request<{ items: PortfolioItem[]; maxBytes: number }>('/api/admin/portfolio'),
+
+  uploadPortfolio: (file: File, input: { title: string; description?: string; visible?: boolean }) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('title', input.title);
+    form.append('description', input.description || '');
+    form.append('visible', input.visible === false ? 'false' : 'true');
+    return request<{ item: PortfolioItem }>('/api/admin/portfolio', { method: 'POST', body: form });
+  },
+
+  updatePortfolio: (id: string, input: { title?: string; description?: string; visible?: boolean }) =>
+    request<{ item: PortfolioItem }>(`/api/admin/portfolio/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    }),
+
+  deletePortfolio: (id: string) =>
+    request<{ ok: true }>(`/api/admin/portfolio/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   deleteAssets: (ids: string[]) =>
     request<AssetsDeleteResult>('/api/assets/delete', { method: 'POST', body: { ids } }),

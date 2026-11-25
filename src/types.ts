@@ -13,6 +13,19 @@ export type AdminUser = {
   createdAt: string;
 };
 
+export type PortfolioItem = {
+  id: string;
+  title: string;
+  description: string;
+  originalName: string;
+  mime: string;
+  size: number;
+  visible: boolean;
+  createdAt: string;
+  downloadUrl: string;
+  previewUrl: string | null;
+};
+
 export type RegistrationRequest = {
   id: string;
   username: string;

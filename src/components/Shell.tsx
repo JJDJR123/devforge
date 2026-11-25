@@ -11,6 +11,7 @@ import { PageView } from '../views/PageView';
 import { SettingsView } from '../views/SettingsView';
 import { KnowledgeView } from '../views/KnowledgeView';
 import { AssetsView } from '../views/AssetsView';
+import { PortfolioView } from '../views/PortfolioView';
 import { AccountAdminView } from '../views/AccountAdminView';
 import { ChatView } from '../views/ChatView';
 import { FriendsView } from '../views/FriendsView';
@@ -59,7 +60,9 @@ export function Shell() {
           ? '知识库'
           : location.pathname.startsWith('/assets')
             ? '素材库'
-            : location.pathname.startsWith('/requests')
+            : location.pathname.startsWith('/portfolio')
+              ? '作品集'
+              : location.pathname.startsWith('/requests')
               ? '账号管理'
               : location.pathname.startsWith('/chat')
                 ? '聊天室'
@@ -128,6 +131,7 @@ export function Shell() {
             <Route path="/page/:pageId" element={<PageView />} />
             <Route path="/kb" element={<KnowledgeView />} />
             <Route path="/assets" element={<AssetsView />} />
+            <Route path="/portfolio" element={<PortfolioView />} />
             <Route path="/accounts" element={<AccountAdminView />} />
             <Route path="/requests" element={<Navigate to="/accounts?tab=requests" replace />} />
             <Route path="/invites" element={<Navigate to="/accounts?tab=invites" replace />} />

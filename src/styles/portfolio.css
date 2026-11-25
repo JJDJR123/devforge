@@ -1,0 +1,79 @@
+/* Portfolio admin + public download page. */
+.portfolio-view {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 27px clamp(18px, 3vw, 34px) 54px;
+}
+.portfolio-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
+.portfolio-head h1 { margin-top: 7px; font-size: clamp(30px, 3.4vw, 42px); letter-spacing: -0.055em; }
+.portfolio-head p { margin-top: 8px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.portfolio-head-actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.portfolio-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.portfolio-upload.is-dragging { border-color: var(--accent); background: var(--accent-soft); }
+.portfolio-upload-icon { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
+.portfolio-upload-main { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.portfolio-upload-main strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-upload-main span { color: var(--faint); font-size: 9px; }
+.portfolio-form { display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 8px; align-items: end; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.portfolio-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.portfolio-field span { color: var(--faint); font-size: 8px; }
+.portfolio-field input { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 10px; outline: 0; }
+.portfolio-field input:focus { border-color: var(--accent-line); }
+.portfolio-list { margin-top: 28px; }
+.portfolio-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.portfolio-list-head h2 { font-size: 16px; }
+.portfolio-list-head h2 span { color: var(--accent); font-family: var(--font-mono); font-size: 10px; }
+.portfolio-item { display: flex; gap: 12px; margin-top: 8px; padding: 11px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.portfolio-item.is-hidden { opacity: 0.62; }
+.portfolio-thumb { display: flex; align-items: center; justify-content: center; width: 92px; height: 72px; flex: 0 0 92px; overflow: hidden; border-radius: 5px; background: var(--surface-2); color: var(--faint); }
+.portfolio-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.portfolio-item-main { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.portfolio-item-title { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.portfolio-item-title strong { font-size: 13px; }
+.portfolio-item-title span { color: var(--faint); font-family: var(--font-mono); font-size: 8px; }
+.portfolio-item-title em { padding: 2px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 8px; font-style: normal; }
+.portfolio-item-main p { color: var(--muted); font-size: 10px; line-height: 1.55; }
+.portfolio-meta { color: var(--faint); font-family: var(--font-mono); font-size: 8px; }
+.portfolio-item-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.portfolio-item-actions .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; font-size: 9px; }
+.portfolio-item-actions .is-danger { color: var(--danger); }
+.portfolio-edit-title, .portfolio-edit-desc { width: 100%; padding: 6px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 10px; outline: 0; }
+.portfolio-edit-desc { resize: vertical; }
+
+/* Public works page */
+.works-page { min-height: 100vh; overflow-y: auto; padding: 40px clamp(18px, 4vw, 52px) 30px; background: var(--bg); color: var(--text); }
+.works-head { width: min(100%, 1080px); margin: 0 auto; }
+.works-head .brand-lockup { margin-bottom: 48px; }
+.works-kicker { color: var(--accent); font-family: var(--font-mono); font-size: 8px; letter-spacing: .14em; }
+.works-head h1 { margin: 8px 0 0; font-size: clamp(34px, 5vw, 62px); letter-spacing: -.065em; }
+.works-head p { max-width: 540px; margin-top: 11px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.works-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; width: min(100%, 1080px); margin: 32px auto 0; }
+.works-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.works-thumb { display: flex; align-items: center; justify-content: center; height: 170px; background: var(--surface-2); color: var(--faint); }
+.works-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.works-body { display: flex; flex-direction: column; gap: 6px; padding: 13px 14px 15px; }
+.works-type { color: var(--accent); font-family: var(--font-mono); font-size: 7.5px; letter-spacing: .08em; }
+.works-body h2 { font-size: 20px; letter-spacing: -.04em; }
+.works-body p { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.works-meta { color: var(--faint); font-family: var(--font-mono); font-size: 8px; }
+.works-download { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px; padding: 7px 10px; font-size: 10px; }
+.works-empty { display: flex; align-items: center; justify-content: center; gap: 8px; width: min(100%, 1080px); min-height: 180px; margin: 30px auto 0; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); font-size: 11px; }
+.works-foot { display: flex; justify-content: space-between; gap: 12px; width: min(100%, 1080px); margin: 40px auto 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--faint); font-family: var(--font-mono); font-size: 7.5px; }
+@media (max-width: 760px) {
+  .portfolio-head { align-items: flex-start; flex-direction: column; }
+  .portfolio-head-actions { justify-content: flex-start; }
+  .portfolio-form { grid-template-columns: 1fr; }
+  .portfolio-item { flex-direction: column; }
+  .portfolio-thumb { width: 100%; height: 140px; flex-basis: 140px; }
+  .works-grid { grid-template-columns: 1fr; }
+  .works-foot { flex-direction: column; }
+}

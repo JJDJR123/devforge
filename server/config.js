@@ -19,8 +19,10 @@ function resolveDir(value, fallback) {
 
 export const DATA_DIR = resolveDir(process.env.DATA_DIR, 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+export const PORTFOLIO_DIR = path.join(DATA_DIR, 'portfolio');
 export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(PORTFOLIO_DIR, { recursive: true });
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
 export const DIST_DIR = path.join(ROOT, 'dist');
@@ -30,6 +32,8 @@ export const NODE_ENV = process.env.NODE_ENV || 'development';
 export const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 export const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 25);
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+export const MAX_PORTFOLIO_MB = Number(process.env.MAX_PORTFOLIO_MB || 100);
+export const MAX_PORTFOLIO_BYTES = MAX_PORTFOLIO_MB * 1024 * 1024;
 export const MAX_BLOCKS_BYTES = 5 * 1024 * 1024;
 export const SETUP_TOKEN = String(process.env.SETUP_TOKEN || '').trim();
 export const ICP_NUMBER = String(process.env.ICP_NUMBER || '').trim();
