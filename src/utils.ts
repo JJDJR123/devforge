@@ -161,6 +161,56 @@ export function insertAtSelection(
   };
 }
 
+export function moduleTreeStats(
+  modules: Array<{ id: string; parentId: string | null }>,
+  pages: Array<{ moduleId: string; chars: number; todoTotal: number; todoDone: number }>,
+  rootId: string,
+) {
+  const children = new Map<string, string[]>();
+  for (const module of modules) {
+    if (!module.parentId) continue;
+    const list = children.get(module.parentId) || [];
+    list.push(module.id);
+    children.set(module.parentId, list);
+  }
+  const pagesByModule = new Map<string, typeof pages>();
+  for (const page of pages) {
+    const list = pagesByModule.get(page.moduleId) || [];
+    list.push(page);
+    pagesByModule.set(page.moduleId, list);
+  }
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const stack = [rootId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    stack.push(...(children.get(id) || []));
+  }
+  let pageCount = 0;
+  let chars = 0;
+  let todoTotal = 0;
+  let todoDone = 0;
+  for (const id of ids) {
+    const list = pagesByModule.get(id) || [];
+    pageCount += list.length;
+    for (const page of list) {
+      chars += page.chars;
+      todoTotal += page.todoTotal;
+      todoDone += page.todoDone;
+    }
+  }
+  return {
+    moduleCount: Math.max(0, ids.length - 1),
+    pageCount,
+    chars,
+    todoTotal,
+    todoDone,
+  };
+}
+
 export function countTodos(blocks: unknown): { total: number; done: number } {
   let total = 0;
   let done = 0;

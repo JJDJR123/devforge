@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, BookOpen, Search, Sparkles } from 'lucide-react';
 import { api } from '../api';
-import type { Module, PageMeta, PublicBootstrap } from '../types';
+import type { Module, PublicBootstrap } from '../types';
 import { ModuleIconContent } from '../components/ModuleIcon';
-import { extractPlainText, firstImageUrl, formatNumber, formatRelativeTime } from '../utils';
+import { extractPlainText, firstImageUrl, formatNumber, formatRelativeTime, moduleTreeStats } from '../utils';
 import '../styles/forge-dashboard.css';
 
 type PageDetail = { excerpt: string; cover: string | null };
@@ -27,15 +27,6 @@ export function MemberHome({ data, onOpenSearch }: { data: PublicBootstrap; onOp
     [data.modules],
   );
   const topModules = useMemo(() => modules.filter((module) => !module.parentId), [modules]);
-  const pagesByModule = useMemo(() => {
-    const map = new Map<string, PageMeta[]>();
-    for (const page of data.pages) {
-      const list = map.get(page.moduleId) || [];
-      list.push(page);
-      map.set(page.moduleId, list);
-    }
-    return map;
-  }, [data.pages]);
   const recent = data.recent.slice(0, 3);
   const featured = recent[0];
   const side = recent.slice(1);
@@ -151,11 +142,10 @@ export function MemberHome({ data, onOpenSearch }: { data: PublicBootstrap; onOp
         ) : (
           <div className="fd-module-grid">
             {topModules.map((module) => {
-              const modulePages = pagesByModule.get(module.id) || [];
-              const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
-              const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
-              const todoDone = modulePages.reduce((sum, page) => sum + page.todoDone, 0);
-              const progress = todoTotal ? Math.round((todoDone / todoTotal) * 100) : Math.max(8, Math.round((chars / Math.max(1, data.stats.chars)) * 100));
+              const tree = moduleTreeStats(modules, data.pages, module.id);
+              const progress = tree.todoTotal
+                ? Math.round((tree.todoDone / tree.todoTotal) * 100)
+                : Math.max(8, Math.round((tree.chars / Math.max(1, data.stats.chars)) * 100));
               return (
                 <article
                   key={module.id}
@@ -180,9 +170,12 @@ export function MemberHome({ data, onOpenSearch }: { data: PublicBootstrap; onOp
                       <strong>{module.title}</strong>
                       <span>公开</span>
                     </div>
-                    <span className="fd-card-meta">{modulePages.length} 张页面 · {formatNumber(chars)} 字</span>
+                    <span className="fd-card-meta">
+                      {tree.moduleCount ? `${tree.moduleCount} 个小模块 · ` : ''}
+                      {tree.pageCount} 张页面 · {formatNumber(tree.chars)} 字
+                    </span>
                     <div className="fd-progress"><span style={{ width: `${progress}%` }} /></div>
-                    <span className="fd-card-foot">{todoTotal ? `任务 ${todoDone}/${todoTotal}` : '公开阅读'}<ArrowUpRight size={13} /></span>
+                    <span className="fd-card-foot">{tree.todoTotal ? `任务 ${tree.todoDone}/${tree.todoTotal}` : '公开阅读'}<ArrowUpRight size={13} /></span>
                   </div>
                 </article>
               );

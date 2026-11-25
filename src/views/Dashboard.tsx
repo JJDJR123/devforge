@@ -20,8 +20,8 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { DropdownMenu } from '../components/DropdownMenu';
 import { ModuleDialog } from '../components/ModuleDialog';
 import { ModuleIconContent } from '../components/ModuleIcon';
-import type { Module, PageMeta } from '../types';
-import { extractPlainText, firstImageUrl, formatNumber, formatRelativeTime, todayLabel } from '../utils';
+import type { Module } from '../types';
+import { extractPlainText, firstImageUrl, formatNumber, formatRelativeTime, moduleTreeStats, todayLabel } from '../utils';
 import '../styles/forge-dashboard.css';
 
 type PageDetail = { excerpt: string; cover: string | null };
@@ -48,16 +48,6 @@ export function Dashboard() {
   const [details, setDetails] = useState<Record<string, PageDetail>>({});
 
   const pages = data?.pages || [];
-  const pagesByModule = useMemo(() => {
-    const map = new Map<string, PageMeta[]>();
-    for (const page of pages) {
-      const list = map.get(page.moduleId) || [];
-      list.push(page);
-      map.set(page.moduleId, list);
-    }
-    return map;
-  }, [pages]);
-
   const recent = (data?.recent || []).slice(0, 3);
   const modules = useMemo(
     () => [...(data?.modules || [])].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -101,11 +91,12 @@ export function Dashboard() {
   }
 
   async function deleteModule(module: Module) {
-    const count = (pagesByModule.get(module.id) || []).length;
+    const tree = moduleTreeStats(modules, pages, module.id);
+    const count = tree.pageCount;
     const ok = await confirm({
       title: `删除「${module.title}」？`,
-      message: count > 0
-        ? `模块里的 ${count} 个页面也会一起删除，且不能撤销。建议先在设置里导出备份。`
+      message: count > 0 || tree.moduleCount > 0
+        ? `这个模块下的 ${count} 个页面${tree.moduleCount ? `、${tree.moduleCount} 个小模块` : ''}也会一起删除，且不能撤销。建议先在设置里导出备份。`
         : '这个模块会被永久删除，且不能撤销。',
       confirmText: '删除模块',
       danger: true,
@@ -243,11 +234,10 @@ export function Dashboard() {
         ) : (
           <div className="fd-module-grid">
             {topModules.map((module) => {
-              const modulePages = pagesByModule.get(module.id) || [];
-              const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
-              const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
-              const todoDone = modulePages.reduce((sum, page) => sum + page.todoDone, 0);
-              const progress = todoTotal ? Math.round((todoDone / todoTotal) * 100) : Math.max(8, Math.round((chars / Math.max(1, data.stats.chars)) * 100));
+              const tree = moduleTreeStats(modules, pages, module.id);
+              const progress = tree.todoTotal
+                ? Math.round((tree.todoDone / tree.todoTotal) * 100)
+                : Math.max(8, Math.round((tree.chars / Math.max(1, data.stats.chars)) * 100));
               return (
                 <article
                   key={module.id}
@@ -288,9 +278,15 @@ export function Dashboard() {
                       <strong>{module.title}</strong>
                       <span>{module.isPublic ? '公开' : '私密'}</span>
                     </div>
-                    <span className="fd-card-meta">{modulePages.length} 张页面 · {formatNumber(chars)} 字</span>
+                    <span className="fd-card-meta">
+                      {tree.moduleCount ? `${tree.moduleCount} 个小模块 · ` : ''}
+                      {tree.pageCount} 张页面 · {formatNumber(tree.chars)} 字
+                    </span>
                     <div className="fd-progress"><span style={{ width: `${progress}%` }} /></div>
-                    <span className="fd-card-foot">{todoTotal ? `任务 ${todoDone}/${todoTotal}` : '还没有任务'}<ArrowUpRight size={13} /></span>
+                    <span className="fd-card-foot">
+                      {tree.todoTotal ? `任务 ${tree.todoDone}/${tree.todoTotal}` : '还没有任务'}
+                      <ArrowUpRight size={13} />
+                    </span>
                   </div>
                 </article>
               );
