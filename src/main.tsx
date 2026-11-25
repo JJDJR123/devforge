@@ -5,6 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 import '@blocknote/mantine/style.css';
 import './styles/global.css';
 import './styles/editor.css';
+import './styles/forge-shell.css';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
@@ -10,6 +10,7 @@ import {
   FilePlus2,
   FolderPlus,
   Globe2,
+  GripVertical,
   Images,
   LayoutDashboard,
   Lock,
@@ -77,6 +78,10 @@ export function Sidebar({
     open: false,
     module: null,
   });
+  const [draggedModuleId, setDraggedModuleId] = useState('');
+  const [dragOverModuleId, setDragOverModuleId] = useState('');
+  const draggedModuleRef = useRef('');
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const modules = useMemo(
     () => [...(data?.modules || [])].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -161,6 +166,77 @@ export function Sidebar({
       toast(getErrorMessage(error), 'error');
     }
   }
+
+  async function dropTopModule(targetId: string) {
+    const sourceId = draggedModuleRef.current || draggedModuleId;
+    if (!sourceId || sourceId === targetId) {
+      draggedModuleRef.current = '';
+      setDraggedModuleId('');
+      setDragOverModuleId('');
+      return;
+    }
+    const from = topModules.findIndex((module) => module.id === sourceId);
+    const to = topModules.findIndex((module) => module.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...topModules];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    draggedModuleRef.current = '';
+    setDraggedModuleId('');
+    setDragOverModuleId('');
+    try {
+      await api.reorderModules(next.map((module) => module.id));
+      await refresh();
+      toast('模块顺序已保存。', 'success');
+    } catch (error) {
+      toast(getErrorMessage(error), 'error');
+    }
+  }
+
+  function startModuleDrag(moduleId: string, event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    dragCleanupRef.current?.();
+    draggedModuleRef.current = moduleId;
+    setDraggedModuleId(moduleId);
+    const rowAt = (x: number, y: number) => {
+      const element = document.elementFromPoint(x, y);
+      return element instanceof Element ? element.closest<HTMLElement>('[data-drag-module]') : null;
+    };
+    const onMove = (moveEvent: PointerEvent) => {
+      const row = rowAt(moveEvent.clientX, moveEvent.clientY);
+      setDragOverModuleId(row?.dataset.dragModule || '');
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      dragCleanupRef.current = null;
+    };
+    dragCleanupRef.current = cleanup;
+    const onUp = (upEvent: PointerEvent) => {
+      const row = rowAt(upEvent.clientX, upEvent.clientY);
+      const targetId = row?.dataset.dragModule || '';
+      cleanup();
+      if (targetId) void dropTopModule(targetId);
+      else {
+        draggedModuleRef.current = '';
+        setDraggedModuleId('');
+        setDragOverModuleId('');
+      }
+    };
+    const onCancel = () => {
+      cleanup();
+      draggedModuleRef.current = '';
+      setDraggedModuleId('');
+      setDragOverModuleId('');
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  }
+
+  useEffect(() => () => { dragCleanupRef.current?.(); }, []);
 
   async function togglePublic(module: Module) {
     try {
@@ -345,8 +421,8 @@ export function Sidebar({
         </nav>
 
         <div className="sidebar-tree-head">
-          <span>学习模块</span>
-          <span className="tree-count">{modules.length}</span>
+          <span>我的模块</span>
+          <span className="tree-count" title="拖动模块排序">{topModules.length} · 拖动</span>
         </div>
 
         <div className="sidebar-tree">
@@ -372,6 +448,21 @@ export function Sidebar({
               onNavigate={go}
               onAddPage={(moduleId) => { void addPage(moduleId); }}
               onMenu={moduleMenu}
+              dragHandle={(
+                <button
+                  type="button"
+                  className="side-drag-handle"
+                  onPointerDown={(event) => startModuleDrag(module.id, event)}
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={`拖动 ${module.title}`}
+                  title="拖动排序"
+                >
+                  <GripVertical size={13} />
+                </button>
+              )}
+              dragId={module.id}
+              dragging={draggedModuleId === module.id}
+              dragOver={dragOverModuleId === module.id}
             />
           ))}
         </div>
@@ -429,6 +520,10 @@ function ModuleNode({
   onNavigate,
   onAddPage,
   onMenu,
+  dragHandle,
+  dragId,
+  dragging = false,
+  dragOver = false,
 }: {
   module: Module;
   depth: number;
@@ -441,6 +536,10 @@ function ModuleNode({
   onNavigate: (path: string) => void;
   onAddPage: (moduleId: string) => void;
   onMenu: (module: Module, siblings: Module[]) => MenuItem[];
+  dragHandle?: ReactNode;
+  dragId?: string;
+  dragging?: boolean;
+  dragOver?: boolean;
 }) {
   const key = `module:${module.id}`;
   const isCollapsed = collapsed.has(key);
@@ -448,8 +547,13 @@ function ModuleNode({
   const children = modulesByParent.get(module.id) || [];
   const hasChildren = pages.length > 0 || children.length > 0;
   return (
-    <div className="side-module" style={depth > 0 ? { marginLeft: 10 + depth * 4 } : undefined}>
+    <div
+      className={`side-module${dragging ? ' is-dragging' : ''}${dragOver ? ' is-drag-over' : ''}${dragId ? ' is-draggable' : ''}`}
+      style={depth > 0 ? { marginLeft: 10 + depth * 4 } : undefined}
+      data-drag-module={dragId}
+    >
       <div className="side-module-head">
+        {dragHandle}
         <button
           type="button"
           className="side-collapse"

@@ -69,9 +69,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadBootstrap = useCallback(async () => {
     const result = await api.bootstrap();
+    // Normalize legacy green Forge settings before exposing them to the UI so
+    // the settings picker and the applied theme agree.
+    result.theme = normalizeTheme(result.theme);
     setData(result);
     setUser(result.user);
-    applyTheme(normalizeTheme(result.theme));
+    applyTheme(result.theme);
     try { localStorage.setItem(THEME_CACHE, JSON.stringify(result.theme)); } catch { /* ignore */ }
     setPhase('ready');
   }, []);

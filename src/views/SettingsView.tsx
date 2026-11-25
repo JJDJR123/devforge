@@ -271,7 +271,7 @@ function AppearancePanel() {
             <div>
               <span className="eyebrow">SURFACE</span>
               <h2>质感</h2>
-              <p>控制圆角、字号和背景网格。</p>
+              <p>控制圆角和字号。Forge 统一视觉默认不使用背景网格和环境光。</p>
             </div>
           </div>
           <label className="range-field">
@@ -310,24 +310,6 @@ function AppearancePanel() {
                 onClick={() => updateTheme({ density: 'compact' })}
               >紧凑</button>
             </div>
-          </div>
-          <div className="toggle-field">
-            <span><b>背景网格</b><em>深色工作台的网格纹理</em></span>
-            <button
-              type="button"
-              className={cn('switch', normalized.grid && 'is-on')}
-              onClick={() => updateTheme({ grid: !normalized.grid })}
-              aria-pressed={normalized.grid}
-            ><span /></button>
-          </div>
-          <div className="toggle-field">
-            <span><b>环境光</b><em>主色在背景里的柔光</em></span>
-            <button
-              type="button"
-              className={cn('switch', normalized.glow && 'is-on')}
-              onClick={() => updateTheme({ glow: !normalized.glow })}
-              aria-pressed={normalized.glow}
-            ><span /></button>
           </div>
         </section>
       </div>

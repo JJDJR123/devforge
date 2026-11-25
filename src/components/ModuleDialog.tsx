@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+﻿import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { Layers, Loader2, Upload, X } from 'lucide-react';
 import type { Module } from '../types';
 import { api } from '../api';
@@ -30,7 +30,7 @@ export function ModuleDialog({
   const [title, setTitle] = useState('');
   const [icon, setIcon] = useState('🎮');
   const [iconUrl, setIconUrl] = useState('');
-  const [accent, setAccent] = useState('#c8f76a');
+  const [accent, setAccent] = useState('#f16436');
   const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,7 @@ export function ModuleDialog({
     setTitle(module?.title || '');
     setIcon(module?.icon || '🎮');
     setIconUrl(module?.iconUrl || '');
-    setAccent(module?.accent || '#c8f76a');
+    setAccent(module?.accent || '#f16436');
     setIsPublic(module ? module.isPublic : true);
     setError('');
     setBusy(false);

@@ -55,10 +55,10 @@ export const AI_MAX_TOKENS = Math.min(4000, Math.max(200, Number(process.env.AI_
 
 export const DEFAULT_THEME = {
   preset: 'forge',
-  accent: '#c8f76a',
-  radius: 14,
+  accent: '#f16436',
+  radius: 6,
   fontScale: 100,
   density: 'comfortable',
-  grid: true,
-  glow: true,
+  grid: false,
+  glow: false,
 };

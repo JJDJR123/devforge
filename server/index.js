@@ -180,7 +180,7 @@ const cleanIcon = (value, fallback = '📄') => {
   return (icon || fallback).slice(0, 32);
 };
 
-const cleanAccent = (value, fallback = '#c8f76a') => {
+const cleanAccent = (value, fallback = '#f16436') => {
   const accent = String(value ?? '').trim();
   return /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : fallback;
 };

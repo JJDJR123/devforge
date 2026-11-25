@@ -4,6 +4,7 @@ import { api } from '../api';
 import type { ChatMessage } from '../types';
 import { useApp } from '../state/AppContext';
 import { useToast } from '../components/Toast';
+import { ChatEmojiPicker } from '../components/ChatEmojiPicker';
 import { getErrorMessage } from '../utils';
 
 export function ChatView({ member = false }: { member?: boolean }) {
@@ -97,6 +98,7 @@ export function ChatView({ member = false }: { member?: boolean }) {
               }
             }}
           />
+          <ChatEmojiPicker onPick={(emoji) => setText((value) => `${value}${emoji}`)} disabled={sending} />
           <button type="button" className="btn btn-primary" onClick={() => { void send(); }} disabled={sending || !text.trim()}>
             {sending ? <Loader2 size={15} className="spin" /> : <Send size={15} />} 发送
           </button>

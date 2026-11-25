@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -6,12 +6,10 @@ import {
   FilePlus2,
   FolderPlus,
   Globe2,
-  Lightbulb,
   Lock,
   MoreHorizontal,
   Pencil,
   Plus,
-  RefreshCw,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -22,24 +20,31 @@ import { useConfirm } from '../components/ConfirmDialog';
 import { DropdownMenu } from '../components/DropdownMenu';
 import { ModuleDialog } from '../components/ModuleDialog';
 import { ModuleIconContent } from '../components/ModuleIcon';
-import type { Module } from '../types';
-import {
-  cn,
-  formatNumber,
-  formatRelativeTime,
-  getGreeting,
-  todayLabel,
-} from '../utils';
+import type { Module, PageMeta } from '../types';
+import { extractPlainText, formatNumber, formatRelativeTime } from '../utils';
+import '../styles/forge-dashboard.css';
 
-const TIPS = [
-  '先做一个 30 秒就能玩完的原型，再考虑美术。',
-  '如果一条玩法解释超过三句话，它可能还不够小。',
-  '把「不会做」拆成三个「今天能查明白」的问题。',
-  '先做完一个垂直切片：一个场景、一个角色、一个循环。',
-  '每天结束时留一句明天从哪里继续，比写长总结更有用。',
-  '素材先找免费的占位图，玩法验证之前不要沉迷画图。',
-  '让一个陌生人玩 5 分钟，比你改 5 天更有信息量。',
-];
+type PageDetail = { excerpt: string; cover: string | null };
+
+function firstImageUrl(blocks: unknown): string | null {
+  if (!Array.isArray(blocks)) return null;
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue;
+    const record = block as { type?: string; props?: Record<string, unknown>; children?: unknown };
+    if (record.type === 'image' && typeof record.props?.url === 'string') return record.props.url;
+    const child = firstImageUrl(record.children);
+    if (child) return child;
+  }
+  return null;
+}
+
+function moduleIcon(module: Module) {
+  return (
+    <span className="fd-module-icon">
+      <ModuleIconContent module={module} />
+    </span>
+  );
+}
 
 export function Dashboard() {
   const { data, refresh, removeModuleLocal } = useApp();
@@ -51,14 +56,12 @@ export function Dashboard() {
     module: Module | null;
     parentId?: string | null;
     parentTitle?: string;
-  }>({
-    open: false,
-    module: null,
-  });
-  const [tipIndex, setTipIndex] = useState(0);
+  }>({ open: false, module: null });
+  const [details, setDetails] = useState<Record<string, PageDetail>>({});
+
   const pages = data?.pages || [];
   const pagesByModule = useMemo(() => {
-    const map = new Map<string, typeof pages>();
+    const map = new Map<string, PageMeta[]>();
     for (const page of pages) {
       const list = map.get(page.moduleId) || [];
       list.push(page);
@@ -67,28 +70,39 @@ export function Dashboard() {
     return map;
   }, [pages]);
 
-  if (!data) return null;
-
-  const modules = [...data.modules].sort((a, b) => a.sortOrder - b.sortOrder);
-  const topModules = modules.filter((module) => !module.parentId);
-  const recent = data.recent;
+  const recent = (data?.recent || []).slice(0, 3);
+  const modules = useMemo(
+    () => [...(data?.modules || [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [data?.modules],
+  );
   const modulesById = new Map(modules.map((module) => [module.id, module]));
+  const featured = recent[0];
+  const side = recent.slice(1);
 
-  const maxChars = Math.max(1, ...modules.map((module) => (
-    (pagesByModule.get(module.id) || []).reduce((sum, page) => sum + page.chars, 0)
-  )));
+  useEffect(() => {
+    if (!recent.length) return;
+    let cancelled = false;
+    Promise.all(recent.map(async (page) => {
+      try {
+        const result = await api.getPage(page.id);
+        return [page.id, {
+          excerpt: extractPlainText(result.page.blocks).slice(0, 150),
+          cover: firstImageUrl(result.page.blocks),
+        }] as const;
+      } catch {
+        return [page.id, { excerpt: '', cover: null }] as const;
+      }
+    })).then((entries) => {
+      if (!cancelled) setDetails(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
+  }, [recent.map((page) => page.id).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const continuePage = recent[0] || pages[0] || null;
-  const continueModule = continuePage ? modulesById.get(continuePage.moduleId) : null;
-  const monthProgress = Math.min(100, Math.round((data.stats.chars / 12000) * 100));
+  if (!data) return null;
 
   async function addPage(moduleId: string) {
     try {
-      const result = await api.createPage({
-        moduleId,
-        title: '未命名页面',
-        icon: '📄',
-      });
+      const result = await api.createPage({ moduleId, title: '未命名页面', icon: '📄' });
       await refresh();
       navigate(`/page/${result.page.id}`);
       toast('新页面已创建。', 'success');
@@ -131,8 +145,8 @@ export function Dashboard() {
   const newPageMenu = modules.length ? (
     <DropdownMenu
       trigger={(
-        <button type="button" className="btn btn-primary">
-          <Plus size={17} /> 新建页面
+        <button type="button" className="btn btn-primary fd-primary-btn">
+          <Plus size={16} /> 新建页面
         </button>
       )}
       items={modules.map((module) => ({
@@ -141,238 +155,167 @@ export function Dashboard() {
       }))}
     />
   ) : (
-    <button type="button" className="btn btn-primary" onClick={() => setModuleDialog({ open: true, module: null })}>
-      <Plus size={17} /> 新建模块
+    <button type="button" className="btn btn-primary fd-primary-btn" onClick={() => setModuleDialog({ open: true, module: null })}>
+      <Plus size={16} /> 新建模块
     </button>
   );
 
   return (
-    <div className="dashboard">
-      <section className="dash-hero">
-        <div className="hero-grid-deco" aria-hidden="true" />
-        <div className="hero-copy">
-          <div className="hero-eyebrow">
-            <Sparkles size={13} /> {todayLabel()}
-          </div>
-          <h1>
-            {getGreeting()}，<span>开发者</span><i>.</i>
-          </h1>
+    <div className="fd-dashboard">
+      <header className="fd-head">
+        <div>
+          <span className="fd-eyebrow"><Sparkles size={12} /> WORKBENCH / 工作台</span>
+          <h1>继续建造。</h1>
           <p>把想做的游戏，拆成今天能完成的一步。</p>
-          <div className="hero-actions">
-            {newPageMenu}
-            <button type="button" className="btn btn-ghost" onClick={() => setModuleDialog({ open: true, module: null })}>
-              <FolderPlus size={16} /> 新建模块
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => navigate('/forge-preview')}>
-              <Sparkles size={16} /> 新版预览
-            </button>
-          </div>
-          <div className="hero-footnote">
-            <span><i className="status-dot" /> 自动保存已开启</span>
-            <span>SQLITE · {data.system.databaseBytes ? `${(data.system.databaseBytes / 1024).toFixed(0)} KB` : 'READY'}</span>
-          </div>
         </div>
+        <div className="fd-head-actions">
+          {newPageMenu}
+          <button type="button" className="btn btn-ghost" onClick={() => setModuleDialog({ open: true, module: null })}>
+            <FolderPlus size={16} /> 新建模块
+          </button>
+        </div>
+      </header>
 
-        <div className="hero-panel">
-          <div className="hero-panel-head">
-            <span>CONTINUE WHERE YOU LEFT</span>
-            <span className="hero-panel-index">01</span>
-          </div>
-          {continuePage ? (
-            <button type="button" className="focus-card" onClick={() => navigate(`/page/${continuePage.id}`)}>
-              <span className="focus-label">继续上次</span>
-              <span className="focus-icon">{continuePage.icon}</span>
-              <strong>{continuePage.title}</strong>
-              <span className="focus-meta">
-                {continueModule?.title || '模块'} · {formatRelativeTime(continuePage.updatedAt)}
-              </span>
-              <span className="focus-cta">继续编辑 <ArrowUpRight size={15} /></span>
-            </button>
-          ) : (
-            <div className="focus-card is-empty">
-              <span className="focus-label">空白画布</span>
-              <span className="focus-icon">✨</span>
-              <strong>从第一张页面开始</strong>
-              <span className="focus-meta">新建一个模块，然后把想法写进去。</span>
-            </div>
-          )}
-          <div className="hero-meter">
-            <div className="hero-meter-label">
-              <span>累计内容</span>
-              <strong>{formatNumber(data.stats.chars)} <em>字</em></strong>
-            </div>
-            <div className="meter-track"><span style={{ width: `${Math.max(4, monthProgress)}%` }} /></div>
-            <div className="hero-meter-foot">
-              <span>{data.stats.pageCount} 张页面</span>
-              <span>{monthProgress}% / 12k</span>
-            </div>
-          </div>
-        </div>
+      <section className="fd-stats">
+        <div><span>模块</span><strong>{data.stats.moduleCount}</strong><em>个</em></div>
+        <div><span>页面</span><strong>{data.stats.pageCount}</strong><em>张</em></div>
+        <div><span>累计内容</span><strong>{formatNumber(data.stats.chars)}</strong><em>字</em></div>
+        <div><span>最近更新</span><strong>{formatRelativeTime(data.stats.updatedAt)}</strong></div>
       </section>
 
-      <section className="stat-grid">
-        <StatCard label="学习模块" value={data.stats.moduleCount} suffix="个" foot="文件夹" />
-        <StatCard label="页面总数" value={data.stats.pageCount} suffix="张" foot="自由搭建" />
-        <StatCard label="累计字数" value={formatNumber(data.stats.chars)} suffix="字" foot="不含空格" />
-        <StatCard label="最近更新" value={formatRelativeTime(data.stats.updatedAt)} suffix="" foot="自动保存" small />
-      </section>
-
-      <div className="dash-columns">
-        <section className="dash-section modules-section">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">MODULES / 学习模块</span>
-              <h2>你的开发地图</h2>
-            </div>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setModuleDialog({ open: true, module: null })}>
-              <Plus size={15} /> 新建
-            </button>
+      <section className="fd-section fd-recent">
+        <div className="fd-section-head">
+          <div>
+            <span className="fd-eyebrow">RECENT / 最近继续</span>
+            <h2>从上次停下的地方继续</h2>
           </div>
+          <button type="button" className="fd-text-link" onClick={() => navigate('/kb')}>查看全部 <ArrowUpRight size={14} /></button>
+        </div>
 
-          {modules.length === 0 ? (
-            <div className="module-empty">
-              <div className="module-empty-art"><FolderPlus size={30} /></div>
-              <h3>还没有模块</h3>
-              <p>模块是学习的文件夹。先建一个「Godot 入门」，或者任何你正在研究的方向。</p>
-              <button type="button" className="btn btn-primary" onClick={() => setModuleDialog({ open: true, module: null })}>
-                <Plus size={16} /> 创建第一个模块
-              </button>
-            </div>
-          ) : (
-            <div className="module-grid">
-              {topModules.map((module) => {
-                const modulePages = pagesByModule.get(module.id) || [];
-                const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
-                const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
-                const todoDone = modulePages.reduce((sum, page) => sum + page.todoDone, 0);
-                const completion = todoTotal ? Math.round((todoDone / todoTotal) * 100) : null;
-                const pct = completion ?? Math.max(4, Math.round((chars / maxChars) * 100));
-                const last = modulePages.reduce<string | null>((latest, page) => (
-                  !latest || page.updatedAt > latest ? page.updatedAt : latest
-                ), null);
+        {featured ? (
+          <div className="fd-feature-grid">
+            <button type="button" className="fd-feature-card" onClick={() => navigate(`/page/${featured.id}`)}>
+              <div
+                className={`fd-feature-cover${details[featured.id]?.cover ? ' has-image' : ''}`}
+                style={details[featured.id]?.cover ? { backgroundImage: `url(${details[featured.id].cover})` } : undefined}
+              >
+                <span className="fd-cover-badge">继续编辑</span>
+                <span className="fd-cover-icon">{featured.icon || '▤'}</span>
+                <span className="fd-cover-title">{featured.title}</span>
+              </div>
+              <div className="fd-feature-body">
+                <span className="fd-card-meta">{modulesById.get(featured.moduleId)?.title || '未分组'} · {formatRelativeTime(featured.updatedAt)} · {formatNumber(featured.chars)} 字</span>
+                <p>{details[featured.id]?.excerpt || '打开页面继续上次的内容。'}</p>
+                <span className="fd-card-cta">继续编辑 <ArrowUpRight size={15} /></span>
+              </div>
+            </button>
+
+            <div className="fd-side-cards">
+              {side.map((page) => {
+                const module = modulesById.get(page.moduleId);
                 return (
-                  <article
-                    key={module.id}
-                    className="module-card"
-                    style={{ '--module-accent': module.accent } as CSSProperties}
-                    onClick={() => navigate(`/module/${module.id}`)}
-                  >
-                    <div className="module-card-head">
-                      <span className="module-icon"><ModuleIconContent module={module} /></span>
+                  <button key={page.id} type="button" className="fd-side-card" onClick={() => navigate(`/page/${page.id}`)}>
+                    <span className="fd-side-card-icon">{page.icon || '▤'}</span>
+                    <span className="fd-side-card-main">
+                      <span className="fd-card-meta">{module?.title || '未分组'} · {formatRelativeTime(page.updatedAt)}</span>
+                      <strong>{page.title}</strong>
+                      <span>{details[page.id]?.excerpt || '打开页面继续。'}</span>
+                    </span>
+                    <ArrowUpRight size={15} className="fd-side-card-arrow" />
+                  </button>
+                );
+              })}
+              {side.length === 0 ? <div className="fd-empty-side">还没有更多最近编辑的页面。</div> : null}
+            </div>
+          </div>
+        ) : (
+          <div className="fd-empty">还没有页面。先创建你的第一个模块。</div>
+        )}
+      </section>
+
+      <section className="fd-section">
+        <div className="fd-section-head">
+          <div>
+            <span className="fd-eyebrow">MODULES / 我的内容</span>
+            <h2>按项目继续</h2>
+          </div>
+          <button type="button" className="fd-text-link" onClick={() => setModuleDialog({ open: true, module: null })}><Plus size={14} /> 新建模块</button>
+        </div>
+
+        {modules.length === 0 ? (
+          <div className="fd-empty">
+            <FolderPlus size={26} />
+            <h3>还没有模块</h3>
+            <p>先建一个「Godot 入门」，或者任何你正在研究的方向。</p>
+            <button type="button" className="btn btn-primary" onClick={() => setModuleDialog({ open: true, module: null })}>
+              <Plus size={16} /> 创建第一个模块
+            </button>
+          </div>
+        ) : (
+          <div className="fd-module-grid">
+            {modules.map((module) => {
+              const modulePages = pagesByModule.get(module.id) || [];
+              const chars = modulePages.reduce((sum, page) => sum + page.chars, 0);
+              const todoTotal = modulePages.reduce((sum, page) => sum + page.todoTotal, 0);
+              const todoDone = modulePages.reduce((sum, page) => sum + page.todoDone, 0);
+              const progress = todoTotal ? Math.round((todoDone / todoTotal) * 100) : Math.max(8, Math.round((chars / Math.max(1, data.stats.chars)) * 100));
+              return (
+                <article
+                  key={module.id}
+                  className="fd-module-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/module/${module.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/module/${module.id}`);
+                    }
+                  }}
+                >
+                  <div className="fd-module-cover">
+                    {moduleIcon(module)}
+                    <span className="fd-module-cover-title">{module.title}</span>
+                    <div className="fd-module-menu" onClick={(event) => event.stopPropagation()}>
                       <DropdownMenu
                         trigger={(
-                          <button type="button" className="icon-btn module-menu-btn" aria-label="模块菜单">
-                            <MoreHorizontal size={16} />
-                          </button>
+                          <button type="button" className="icon-btn" aria-label="模块菜单"><MoreHorizontal size={15} /></button>
                         )}
                         items={[
                           { label: '打开模块', icon: ArrowRight, onSelect: () => navigate(`/module/${module.id}`) },
                           { label: '新建子模块', icon: FolderPlus, onSelect: () => setModuleDialog({ open: true, module: null, parentId: module.id, parentTitle: module.title }) },
                           { label: '新建页面', icon: FilePlus2, onSelect: () => { void addPage(module.id); } },
                           { label: '编辑模块', icon: Pencil, onSelect: () => setModuleDialog({ open: true, module }) },
-                          {
-                            label: module.isPublic ? '设为私密' : '公开到网站',
-                            icon: module.isPublic ? Lock : Globe2,
-                            onSelect: () => { void togglePublic(module); },
-                          },
+                          { label: module.isPublic ? '设为私密' : '公开到网站', icon: module.isPublic ? Lock : Globe2, onSelect: () => { void togglePublic(module); } },
                           { label: '', separator: true, onSelect: () => undefined },
                           { label: '删除模块', icon: Trash2, danger: true, onSelect: () => { void deleteModule(module); } },
                         ]}
                       />
                     </div>
-                    <h3>{module.title}</h3>
-                    <div className="module-card-meta">
-                      <span className={cn('module-visibility', module.isPublic ? 'is-public' : 'is-private')}>
-                        {module.isPublic ? '公开' : '私密'}
-                      </span>
-                      <span>{modulePages.length} 张页面</span>
-                      <span>{formatNumber(chars)} 字</span>
-                      {todoTotal ? <span className="module-todo-meta">✓ {todoDone}/{todoTotal}</span> : null}
+                  </div>
+                  <div className="fd-module-body">
+                    <div className="fd-module-title">
+                      <strong>{module.title}</strong>
+                      <span>{module.isPublic ? '公开' : '私密'}</span>
                     </div>
-                    <div className={cn('module-track', completion === 100 && 'is-complete')}><span style={{ width: `${pct}%` }} /></div>
-                    <div className="module-card-foot">
-                      <span>{last ? `更新于 ${formatRelativeTime(last)}` : '还没有页面'}</span>
-                      <span className="module-open">打开 <ArrowRight size={14} /></span>
-                    </div>
-                  </article>
-                );
-              })}
-              <button
-                type="button"
-                className="module-card module-card-new"
-                onClick={() => setModuleDialog({ open: true, module: null })}
-              >
-                <span className="module-new-plus"><Plus size={20} /></span>
-                <strong>新建模块</strong>
-                <span>为下一个学习方向留个位置</span>
-              </button>
-            </div>
-          )}
-        </section>
+                    <span className="fd-card-meta">{modulePages.length} 张页面 · {formatNumber(chars)} 字</span>
+                    <div className="fd-progress"><span style={{ width: `${progress}%` }} /></div>
+                    <span className="fd-card-foot">{todoTotal ? `任务 ${todoDone}/${todoTotal}` : '还没有任务'}<ArrowUpRight size={13} /></span>
+                  </div>
+                </article>
+              );
+            })}
+            <button type="button" className="fd-module-card fd-module-new" onClick={() => setModuleDialog({ open: true, module: null })}>
+              <FolderPlus size={20} />
+              <strong>新建模块</strong>
+              <span>把下一个方向放进工作台</span>
+            </button>
+          </div>
+        )}
+      </section>
 
-        <aside className="dash-side">
-          <section className="dash-section recent-section">
-            <div className="section-head compact">
-              <div>
-                <span className="eyebrow">RECENT / 最近</span>
-                <h2>刚刚动过</h2>
-              </div>
-              <span className="section-count">{recent.length}</span>
-            </div>
-            {recent.length === 0 ? (
-              <div className="recent-empty">
-                <p>还没有编辑记录。</p>
-                <span>打开一张页面，写下一句话。</span>
-              </div>
-            ) : (
-              <div className="recent-list">
-                {recent.map((page) => {
-                  const module = modulesById.get(page.moduleId);
-                  return (
-                    <button
-                      key={page.id}
-                      type="button"
-                      className="recent-row"
-                      onClick={() => navigate(`/page/${page.id}`)}
-                    >
-                      <span className="recent-icon">{page.icon || '📄'}</span>
-                      <span className="recent-main">
-                        <strong>{page.title}</strong>
-                        <span>{module?.title || '模块'} · {formatRelativeTime(page.updatedAt)}</span>
-                      </span>
-                      <ArrowUpRight size={15} className="recent-arrow" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="tip-card">
-            <div className="tip-head">
-              <span className="eyebrow"><Lightbulb size={13} /> FIELD NOTE</span>
-              <button
-                type="button"
-                className="icon-btn tip-refresh"
-                onClick={() => setTipIndex((value) => (value + 1) % TIPS.length)}
-                aria-label="换一条建议"
-              >
-                <RefreshCw size={14} />
-              </button>
-            </div>
-            <p>{TIPS[tipIndex]}</p>
-            <span className="tip-index">NOTE {String(tipIndex + 1).padStart(2, '0')} / {String(TIPS.length).padStart(2, '0')}</span>
-          </section>
-        </aside>
-      </div>
-
-      <footer className="dash-footer">
+      <footer className="fd-footer">
         <span>DEVFORGE / BUILD {data.system.version}</span>
-        {data.system.icp?.number ? (
-          <a href={data.system.icp.link || 'https://beian.miit.gov.cn/'} target="_blank" rel="noreferrer">
-            {data.system.icp.number}
-          </a>
-        ) : null}
         <span>做小，做完，再做下一个。</span>
       </footer>
 
@@ -383,32 +326,6 @@ export function Dashboard() {
         parentTitle={moduleDialog.parentTitle}
         onClose={() => setModuleDialog({ open: false, module: null })}
       />
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  suffix,
-  foot,
-  small = false,
-}: {
-  label: string;
-  value: string | number;
-  suffix: string;
-  foot: string;
-  small?: boolean;
-}) {
-  return (
-    <div className={cn('stat-card', small && 'is-small')}>
-      <span className="stat-label">{label}</span>
-      <div className="stat-value">
-        <strong>{value}</strong>
-        {suffix ? <em>{suffix}</em> : null}
-      </div>
-      <span className="stat-foot">{foot}</span>
-      <span className="stat-corner" />
     </div>
   );
 }

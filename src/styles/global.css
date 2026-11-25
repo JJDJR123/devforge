@@ -1,46 +1,46 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    DEVFORGE · 独立游戏开发学习舱
    Design tokens, base UI, shell, auth, dashboard, module, page, settings
    ========================================================================== */
 
 :root {
-  --font-sans: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Bahnschrift", "DIN Alternate", "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  --font-sans: "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
-  --bg: #080b09;
-  --bg-soft: #0b0f0c;
-  --surface: #101611;
-  --surface-2: #151d16;
-  --surface-3: #1b251c;
-  --surface-4: #223025;
+  --bg: #111111;
+  --bg-soft: #0d0d0d;
+  --surface: #181818;
+  --surface-2: #1d1d1d;
+  --surface-3: #242424;
+  --surface-4: #2d2d2d;
   --panel: var(--surface);
   --panel-2: var(--surface-2);
-  --text: #e9f0e3;
-  --text-soft: #c8d3c2;
-  --muted: #8b9886;
-  --faint: #5d6a58;
-  --line: rgba(223, 241, 211, 0.09);
-  --line-strong: rgba(223, 241, 211, 0.17);
-  --accent: #c8f76a;
-  --accent-rgb: 200, 247, 106;
-  --accent-ink: #101508;
-  --accent-soft: rgba(200, 247, 106, 0.09);
-  --accent-line: rgba(200, 247, 106, 0.28);
-  --cyan: #5eead4;
+  --text: #f2f2ee;
+  --text-soft: #c9c9c2;
+  --muted: #9a9a94;
+  --faint: #686862;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --accent: #f16436;
+  --accent-rgb: 241, 100, 54;
+  --accent-ink: #180b06;
+  --accent-soft: rgba(241, 100, 54, 0.09);
+  --accent-line: rgba(241, 100, 54, 0.34);
+  --cyan: #e9a23b;
   --warm: #ff9d5c;
   --danger: #ff7b72;
   --danger-soft: rgba(255, 123, 114, 0.12);
   --success: #7ee787;
 
-  --radius: 14px;
+  --radius: 6px;
   --font-scale: 1;
-  --sidebar-w: 292px;
-  --topbar-h: 64px;
+  --sidebar-w: 258px;
+  --topbar-h: 60px;
 
-  --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.16);
-  --shadow-md: 0 18px 48px rgba(0, 0, 0, 0.30);
-  --shadow-lg: 0 30px 100px rgba(0, 0, 0, 0.50);
+  --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow-md: 0 18px 48px rgba(0, 0, 0, 0.26);
+  --shadow-lg: 0 30px 100px rgba(0, 0, 0, 0.44);
 
   color-scheme: dark;
 }
@@ -117,43 +117,14 @@ body {
   font-size: calc(14px * var(--font-scale));
   line-height: 1.55;
   color: var(--text);
-  background:
-    radial-gradient(900px 520px at 8% -10%, rgba(var(--accent-rgb), 0.08), transparent 62%),
-    radial-gradient(1100px 620px at 100% 0%, rgba(94, 234, 212, 0.035), transparent 58%),
-    var(--bg);
+  background: var(--bg);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), transparent 76%);
-  opacity: 0.42;
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(640px 420px at 76% 0%, rgba(var(--accent-rgb), 0.055), transparent 70%),
-    linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.18) 100%);
-  opacity: 0.9;
-}
-
-[data-grid="off"] body::before { display: none; }
-[data-glow="off"] body::after { opacity: 0.2; }
+body::before,
+body::after { display: none; }
 
 #root { position: relative; z-index: 1; }
 
@@ -703,8 +674,8 @@ svg { display: block; }
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(200, 247, 106, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(200, 247, 106, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(241, 100, 54, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 100, 54, 0.06) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(circle at 50% 50%, black, transparent 65%);
   opacity: 0.6;
@@ -712,8 +683,8 @@ svg { display: block; }
 .splash-inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .splash-inner .brand-mark { animation: splash-mark 1.6s ease-in-out infinite; }
 @keyframes splash-mark {
-  0%, 100% { filter: drop-shadow(0 0 14px rgba(200, 247, 106, 0.15)); }
-  50% { filter: drop-shadow(0 0 34px rgba(200, 247, 106, 0.38)); }
+  0%, 100% { filter: drop-shadow(0 0 14px rgba(241, 100, 54, 0.15)); }
+  50% { filter: drop-shadow(0 0 34px rgba(241, 100, 54, 0.38)); }
 }
 .splash-word {
   margin-top: 18px;
@@ -734,7 +705,7 @@ svg { display: block; }
   margin-top: 28px;
   width: 180px;
   height: 2px;
-  background: rgba(200, 247, 106, 0.1);
+  background: rgba(241, 100, 54, 0.1);
   overflow: hidden;
   border-radius: 99px;
 }
@@ -742,8 +713,8 @@ svg { display: block; }
   display: block;
   width: 45%;
   height: 100%;
-  background: var(--accent, #c8f76a);
-  box-shadow: 0 0 12px rgba(200, 247, 106, 0.55);
+  background: var(--accent, #f16436);
+  box-shadow: 0 0 12px rgba(241, 100, 54, 0.55);
   animation: splash-load 1.5s ease-in-out infinite;
 }
 @keyframes splash-load {
@@ -847,8 +818,8 @@ svg { display: block; }
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(200, 247, 106, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(200, 247, 106, 0.055) 1px, transparent 1px);
+    linear-gradient(rgba(241, 100, 54, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 100, 54, 0.055) 1px, transparent 1px);
   background-size: 58px 58px;
   mask-image: linear-gradient(to bottom, black, transparent 72%);
   pointer-events: none;
@@ -861,8 +832,8 @@ svg { display: block; }
   right: -160px;
   top: 14%;
   border-radius: 50%;
-  border: 1px solid rgba(200, 247, 106, 0.08);
-  box-shadow: 0 0 120px rgba(200, 247, 106, 0.04) inset;
+  border: 1px solid rgba(241, 100, 54, 0.08);
+  box-shadow: 0 0 120px rgba(241, 100, 54, 0.04) inset;
   pointer-events: none;
 }
 .auth-visual-top { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
@@ -897,9 +868,9 @@ svg { display: block; }
   align-items: center;
   gap: 7px;
   padding: 7px 10px;
-  border: 1px solid rgba(200, 247, 106, 0.13);
+  border: 1px solid rgba(241, 100, 54, 0.13);
   border-radius: 8px;
-  background: rgba(200, 247, 106, 0.035);
+  background: rgba(241, 100, 54, 0.035);
   color: #aebba9;
   font-size: 10.5px;
 }
@@ -909,7 +880,7 @@ svg { display: block; }
   position: relative;
   z-index: 1;
   max-width: 620px;
-  border: 1px solid rgba(200, 247, 106, 0.13);
+  border: 1px solid rgba(241, 100, 54, 0.13);
   border-radius: 12px;
   overflow: hidden;
   background: rgba(4, 8, 5, 0.72);
@@ -922,7 +893,7 @@ svg { display: block; }
   gap: 6px;
   height: 30px;
   padding: 0 11px;
-  border-bottom: 1px solid rgba(200, 247, 106, 0.08);
+  border-bottom: 1px solid rgba(241, 100, 54, 0.08);
   background: rgba(255, 255, 255, 0.025);
 }
 .terminal-head span { width: 7px; height: 7px; border-radius: 50%; background: #43503f; }
@@ -1019,8 +990,8 @@ svg { display: block; }
   height: 44px;
 }
 .auth-form .field input:focus {
-  border-color: rgba(200, 247, 106, 0.42);
-  box-shadow: 0 0 0 3px rgba(200, 247, 106, 0.07);
+  border-color: rgba(241, 100, 54, 0.42);
+  box-shadow: 0 0 0 3px rgba(241, 100, 54, 0.07);
 }
 .auth-form .field input::placeholder { color: #52604e; }
 .auth-submit { height: 46px; margin-top: 4px; font-size: 13px; }
@@ -1448,8 +1419,8 @@ svg { display: block; }
   width: 46%;
   height: 150%;
   background-image:
-    linear-gradient(rgba(200, 247, 106, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(200, 247, 106, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(241, 100, 54, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 100, 54, 0.07) 1px, transparent 1px);
   background-size: 34px 34px;
   transform: perspective(500px) rotateY(-18deg) rotateZ(-6deg);
   mask-image: linear-gradient(90deg, transparent, black 40%, transparent 88%);

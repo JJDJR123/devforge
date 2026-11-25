@@ -12,9 +12,9 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'forge',
     name: '锻造台',
-    tagline: '深色 · 荧光绿',
-    accent: '#c8f76a',
-    colors: ['#0a0d0b', '#141b15', '#c8f76a'],
+    tagline: '深灰 · 锻造橙',
+    accent: '#f16436',
+    colors: ['#111111', '#191919', '#f16436'],
   },
   {
     id: 'abyss',
@@ -40,36 +40,43 @@ export const THEME_PRESETS: ThemePreset[] = [
 ];
 
 export const ACCENT_SWATCHES = [
-  '#c8f76a',
+  '#f16436',
+  '#ff9d5c',
+  '#fbbf24',
   '#5eead4',
   '#67e8f9',
   '#a5b4fc',
   '#d8b4fe',
   '#f9a8d4',
-  '#ff9d5c',
-  '#fbbf24',
   '#fb7185',
   '#94a3b8',
 ];
 
 export const THEME_DEFAULTS: Theme = {
   preset: 'forge',
-  accent: '#c8f76a',
-  radius: 14,
+  accent: '#f16436',
+  radius: 6,
   fontScale: 100,
   density: 'comfortable',
-  grid: true,
-  glow: true,
+  grid: false,
+  glow: false,
 };
 
 export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme {
   const preset = THEME_PRESETS.some((item) => item.id === value?.preset)
     ? String(value?.preset)
     : THEME_DEFAULTS.preset;
-  const accent = /^#[0-9a-fA-F]{6}$/.test(String(value?.accent || ''))
+  const requestedAccent = /^#[0-9a-fA-F]{6}$/.test(String(value?.accent || ''))
     ? String(value?.accent).toLowerCase()
-    : THEME_DEFAULTS.accent;
-  const radius = Math.min(28, Math.max(4, Number(value?.radius ?? THEME_DEFAULTS.radius) || THEME_DEFAULTS.radius));
+    : '';
+  // Existing installs were initialized with the old fluorescent-green Forge
+  // theme. Upgrade only that untouched legacy default; explicit custom accents
+  // are preserved.
+  const legacyForge = preset === 'forge' && requestedAccent === '#c8f76a';
+  const accent = legacyForge ? '#f16436' : (requestedAccent || THEME_DEFAULTS.accent);
+  const radius = legacyForge
+    ? 6
+    : Math.min(28, Math.max(4, Number(value?.radius ?? THEME_DEFAULTS.radius) || THEME_DEFAULTS.radius));
   const fontScale = Math.min(120, Math.max(85, Number(value?.fontScale ?? THEME_DEFAULTS.fontScale) || 100));
   return {
     preset,
@@ -77,8 +84,8 @@ export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme 
     radius,
     fontScale,
     density: value?.density === 'compact' ? 'compact' : 'comfortable',
-    grid: value?.grid !== false,
-    glow: value?.glow !== false,
+    grid: legacyForge ? false : value?.grid !== false,
+    glow: legacyForge ? false : value?.glow !== false,
   };
 }
 
@@ -88,7 +95,7 @@ export function hexToRgb(hex: string): [number, number, number] {
     ? value.split('').map((char) => char + char).join('')
     : value;
   const number = Number.parseInt(full, 16);
-  if (!Number.isFinite(number)) return [200, 247, 106];
+  if (!Number.isFinite(number)) return [241, 100, 54];
   return [(number >> 16) & 255, (number >> 8) & 255, number & 255];
 }
 

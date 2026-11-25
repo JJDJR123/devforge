@@ -40,7 +40,7 @@ function migrate() {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         icon TEXT NOT NULL DEFAULT '🎮',
-        accent TEXT NOT NULL DEFAULT '#c8f76a',
+        accent TEXT NOT NULL DEFAULT '#f16436',
         is_public INTEGER NOT NULL DEFAULT 1,
         sort_order REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -361,6 +361,13 @@ function migrate() {
 
       ALTER TABLE assets ADD COLUMN owner_id TEXT NOT NULL DEFAULT '';
       PRAGMA user_version = 15;
+    `);
+  }
+
+  if (version < 16) {
+    db.exec(`
+      UPDATE modules SET accent = '#f16436' WHERE lower(accent) = '#c8f76a';
+      PRAGMA user_version = 16;
     `);
   }
 
@@ -810,7 +817,7 @@ function isModuleDescendant(candidateId, ancestorId) {
   return false;
 }
 
-export function createModule({ title, icon = '🎮', iconUrl = '', accent = '#c8f76a', isPublic = true, parentId = null }) {
+export function createModule({ title, icon = '🎮', iconUrl = '', accent = '#f16436', isPublic = true, parentId = null }) {
   if (parentId && !getModule(parentId)) throw new Error('PARENT_NOT_FOUND');
   const id = uid();
   const stamp = now();
@@ -1960,7 +1967,7 @@ const b = {
 export function seedInitialContent() {
   if (db.prepare('SELECT COUNT(*) AS n FROM modules').get().n > 0) return null;
 
-  const module = createModule({ title: '启程', icon: '🚀', accent: '#c8f76a' });
+  const module = createModule({ title: '启程', icon: '🚀', accent: '#f16436' });
 
   createPage({
     moduleId: module.id,

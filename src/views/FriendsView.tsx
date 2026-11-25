@@ -16,6 +16,7 @@ import type { DmMessage, FriendData, FriendItem, FriendUser } from '../types';
 import { useApp } from '../state/AppContext';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
+import { ChatEmojiPicker } from '../components/ChatEmojiPicker';
 import { compressImageForUpload } from '../imageCompression';
 import { getErrorMessage } from '../utils';
 
@@ -376,6 +377,7 @@ export function FriendsView({ member = false }: { member?: boolean }) {
                     {uploading ? <Loader2 size={16} className="spin" /> : <ImagePlus size={16} />}
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleImage(file); event.target.value = ''; }} />
+                  <ChatEmojiPicker onPick={(emoji) => setText((value) => `${value}${emoji}`)} disabled={sending} />
                   <textarea
                     value={text}
                     onChange={(event) => setText(event.target.value)}

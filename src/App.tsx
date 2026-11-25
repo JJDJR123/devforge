@@ -7,7 +7,6 @@ import { ApplyScreen } from './components/ApplyScreen';
 import { BootError } from './components/BootError';
 import { Shell } from './components/Shell';
 import { PublicApp } from './public/PublicApp';
-import { ForgePreview } from './views/ForgePreview';
 
 const ENTRY_KEY = 'devforge.entry';
 type EntryMode = 'admin' | 'guest' | null;
@@ -67,10 +66,7 @@ export function App() {
     );
   }
   if (phase === 'ready' && data) {
-    if (isForgePreview) {
-      if (user?.role !== 'admin') return <Navigate to="/" replace />;
-      return <ForgePreview />;
-    }
+    if (isForgePreview) return <Navigate to="/" replace />;
     if (preview && !isAdminEntry) return <PublicApp preview />;
     if (isAdminEntry) return <Shell />;
     if (entryMode === 'guest') return <PublicApp />;
