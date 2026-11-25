@@ -57,6 +57,7 @@ export function PortfolioView() {
   const [loading, setLoading] = useState(true);
   const [maxBytes, setMaxBytes] = useState(MAX_MB * 1024 * 1024);
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [editing, setEditing] = useState<{ id: string; title: string; description: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -93,8 +94,13 @@ export function PortfolioView() {
   async function upload() {
     if (!file || busy) return;
     setBusy(true);
+    setProgress({ loaded: 0, total: file.size });
     try {
-      await api.uploadPortfolio(file, { title: title.trim() || file.name, description: description.trim() });
+      await api.uploadPortfolio(
+        file,
+        { title: title.trim() || file.name, description: description.trim() },
+        (loaded, total) => setProgress({ loaded, total }),
+      );
       setFile(null);
       setTitle('');
       setDescription('');
@@ -104,6 +110,7 @@ export function PortfolioView() {
       toast(getErrorMessage(error), 'error');
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -186,7 +193,16 @@ export function PortfolioView() {
         <div className="portfolio-upload-icon"><Upload size={22} /></div>
         <div className="portfolio-upload-main">
           <strong>{file ? file.name : '拖入文件，或点击选择'}</strong>
-          <span>PDF / ZIP / 图片 / MP4 / WebM · 单文件最多 {Math.round(maxBytes / 1024 / 1024)}MB</span>
+          {progress ? (
+            <div className="portfolio-progress-block">
+              <div className="portfolio-progress-track">
+                <span style={{ width: `${progress.total ? Math.min(100, (progress.loaded / progress.total) * 100) : 0}%` }} />
+              </div>
+              <span>{Math.round((progress.loaded / Math.max(1, progress.total)) * 100)}% · {bytes(progress.loaded)} / {bytes(progress.total)}</span>
+            </div>
+          ) : (
+            <span>PDF / ZIP / 图片 / MP4 / WebM · 单文件最多 {Math.round(maxBytes / 1024 / 1024)}MB</span>
+          )}
         </div>
         <input
           ref={inputRef}
@@ -210,7 +226,7 @@ export function PortfolioView() {
           <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="一句话说明，可选" maxLength={2000} />
         </label>
         <button type="button" className="btn btn-primary" onClick={() => { void upload(); }} disabled={!file || busy}>
-          {busy ? <Loader2 size={15} className="spin" /> : <Upload size={15} />} 上传到作品集
+          {busy ? <Loader2 size={15} className="spin" /> : <Upload size={15} />} {busy ? '上传中…' : '上传到作品集'}
         </button>
       </div>
 

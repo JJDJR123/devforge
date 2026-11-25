@@ -352,13 +352,41 @@ export const api = {
 
   adminPortfolio: () => request<{ items: PortfolioItem[]; maxBytes: number }>('/api/admin/portfolio'),
 
-  uploadPortfolio: (file: File, input: { title: string; description?: string; visible?: boolean }) => {
+  uploadPortfolio: (
+    file: File,
+    input: { title: string; description?: string; visible?: boolean },
+    onProgress?: (loaded: number, total: number) => void,
+  ) => {
     const form = new FormData();
     form.append('file', file);
     form.append('title', input.title);
     form.append('description', input.description || '');
     form.append('visible', input.visible === false ? 'false' : 'true');
-    return request<{ item: PortfolioItem }>('/api/admin/portfolio', { method: 'POST', body: form });
+    return new Promise<{ item: PortfolioItem }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/portfolio');
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+      };
+      xhr.onerror = () => reject(new ApiError('网络连接失败，请检查网络后重试。', 0, 'NETWORK_ERROR'));
+      xhr.onload = () => {
+        let data: { item?: PortfolioItem; message?: string; error?: string } = {};
+        try { data = JSON.parse(xhr.responseText); } catch { /* non-JSON proxy error */ }
+        if (xhr.status >= 200 && xhr.status < 300 && data.item) {
+          resolve({ item: data.item });
+          return;
+        }
+        if (xhr.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+        reject(new ApiError(
+          data.message || (xhr.status === 413 ? '文件被反向代理拦截，请检查 Nginx 上传上限。' : '上传失败，请稍后再试。'),
+          xhr.status,
+          data.error || 'UPLOAD_FAILED',
+        ));
+      };
+      xhr.send(form);
+    });
   },
 
   updatePortfolio: (id: string, input: { title?: string; description?: string; visible?: boolean }) =>

@@ -23,6 +23,10 @@
 .portfolio-upload-main { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .portfolio-upload-main strong { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .portfolio-upload-main span { color: var(--faint); font-size: 9px; }
+.portfolio-progress-block { display: flex; flex-direction: column; gap: 4px; }
+.portfolio-progress-track { width: min(360px, 100%); height: 4px; overflow: hidden; border-radius: 2px; background: var(--surface-2); }
+.portfolio-progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .15s linear; }
+.portfolio-progress-block span { font-family: var(--font-mono); font-size: 8px; }
 .portfolio-form { display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 8px; align-items: end; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .portfolio-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .portfolio-field span { color: var(--faint); font-size: 8px; }

@@ -1490,25 +1490,46 @@ app.get('/api/works', async () => ({
   items: listPortfolioItems({ visibleOnly: true }).map(portfolioView),
 }));
 
+function sendPortfolioFile(req, reply, item, download) {
+  const record = getPortfolioRecord(item.id);
+  const file = path.join(PORTFOLIO_DIR, record?.filename || '');
+  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  const total = Number(record.size) || 0;
+  const range = String(req.headers.range || '').match(/^bytes=(\d*)-(\d*)$/);
+  let start = 0;
+  let end = Math.max(0, total - 1);
+  let status = 200;
+  if (range) {
+    if (!total) return fail(reply, 416, 'RANGE_NOT_SATISFIABLE', '文件大小不可用。');
+    start = range[1] ? Number(range[1]) : 0;
+    end = range[2] ? Number(range[2]) : total - 1;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= total) {
+      return reply.code(416).header('Content-Range', `bytes */${total}`).send();
+    }
+    end = Math.min(end, total - 1);
+    status = 206;
+  }
+  reply
+    .code(status)
+    .type(item.mime)
+    .header('Accept-Ranges', 'bytes')
+    .header('Content-Length', String(end - start + 1))
+    .header('Cache-Control', 'private, max-age=3600');
+  if (status === 206) reply.header('Content-Range', `bytes ${start}-${end}/${total}`);
+  if (download) reply.header('Content-Disposition', contentDisposition(item.originalName));
+  return reply.send(fs.createReadStream(file, status === 206 ? { start, end } : undefined));
+}
+
 app.get('/api/works/:id/file', async (req, reply) => {
   const item = getPortfolioItem(req.params.id);
   if (!item || !item.visible) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
-  const file = path.join(PORTFOLIO_DIR, getPortfolioRecord(item.id)?.filename || '');
-  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
-  return reply.type(item.mime).header('Cache-Control', 'private, max-age=3600').send(fs.createReadStream(file));
+  return sendPortfolioFile(req, reply, item, false);
 });
 
 app.get('/api/works/:id/download', async (req, reply) => {
   const item = getPortfolioItem(req.params.id);
   if (!item || !item.visible) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
-  const record = getPortfolioRecord(item.id);
-  const file = path.join(PORTFOLIO_DIR, record?.filename || '');
-  if (!fs.existsSync(file)) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
-  return reply
-    .type(item.mime)
-    .header('Content-Disposition', contentDisposition(item.originalName))
-    .header('Cache-Control', 'private, max-age=3600')
-    .send(fs.createReadStream(file));
+  return sendPortfolioFile(req, reply, item, true);
 });
 
 app.get('/api/admin/portfolio', { preHandler: requireAuth }, async () => ({
