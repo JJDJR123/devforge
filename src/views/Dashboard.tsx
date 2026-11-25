@@ -163,6 +163,9 @@ export function Dashboard() {
             <button type="button" className="btn btn-ghost" onClick={() => setModuleDialog({ open: true, module: null })}>
               <FolderPlus size={16} /> 新建模块
             </button>
+            <button type="button" className="btn btn-ghost" onClick={() => navigate('/forge-preview')}>
+              <Sparkles size={16} /> 新版预览
+            </button>
           </div>
           <div className="hero-footnote">
             <span><i className="status-dot" /> 自动保存已开启</span>

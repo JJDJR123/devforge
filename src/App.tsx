@@ -7,6 +7,7 @@ import { ApplyScreen } from './components/ApplyScreen';
 import { BootError } from './components/BootError';
 import { Shell } from './components/Shell';
 import { PublicApp } from './public/PublicApp';
+import { ForgePreview } from './views/ForgePreview';
 
 const ENTRY_KEY = 'devforge.entry';
 type EntryMode = 'admin' | 'guest' | null;
@@ -23,6 +24,7 @@ export function App() {
   const [entryMode, setEntryMode] = useState<EntryMode>(readEntryMode);
   const isAdminEntry = location.pathname.replace(/\/+$/, '') === '/admin';
   const isApplyEntry = location.pathname.replace(/\/+$/, '') === '/apply';
+  const isForgePreview = location.pathname.replace(/\/+$/, '') === '/forge-preview';
   const preview = typeof sessionStorage !== 'undefined'
     && sessionStorage.getItem('devforge.preview') === '1';
 
@@ -47,7 +49,7 @@ export function App() {
     return <AuthScreen mode="setup" onLoginSuccess={() => rememberEntry('admin')} />;
   }
   if (user?.role === 'reader' && !isApplyEntry) {
-    if (isAdminEntry) return <Navigate to="/" replace />;
+    if (isAdminEntry || isForgePreview) return <Navigate to="/" replace />;
     return <PublicApp member />;
   }
   if (phase === 'login') {
@@ -65,6 +67,10 @@ export function App() {
     );
   }
   if (phase === 'ready' && data) {
+    if (isForgePreview) {
+      if (user?.role !== 'admin') return <Navigate to="/" replace />;
+      return <ForgePreview />;
+    }
     if (preview && !isAdminEntry) return <PublicApp preview />;
     if (isAdminEntry) return <Shell />;
     if (entryMode === 'guest') return <PublicApp />;
