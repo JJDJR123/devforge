@@ -1962,6 +1962,15 @@ export function updatePortfolioItem(id, patch) {
   return getPortfolioItem(id);
 }
 
+export function replacePortfolioFile(id, { filename, originalName, mime, size }) {
+  db.prepare(`
+    UPDATE portfolio_items
+    SET filename = ?, original_name = ?, mime = ?, size = ?
+    WHERE id = ?
+  `).run(filename, originalName, mime, size, id);
+  return getPortfolioItem(id);
+}
+
 export function deletePortfolioItem(id) {
   const row = getPortfolioRecord(id);
   if (!row) return null;

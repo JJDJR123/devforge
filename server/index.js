@@ -54,6 +54,7 @@ import {
   getPortfolioItem,
   getPortfolioRecord,
   listPortfolioItems,
+  replacePortfolioFile,
   updatePortfolioItem,
   databaseSize,
   db,
@@ -1587,6 +1588,54 @@ app.post('/api/admin/portfolio', { preHandler: requireAuth }, async (req, reply)
     size: stat.size,
     visible,
   });
+  return { item: portfolioView(item) };
+});
+
+app.post('/api/admin/portfolio/:id/file', { preHandler: requireAuth }, async (req, reply) => {
+  const old = getPortfolioRecord(req.params.id);
+  if (!old) return fail(reply, 404, 'NOT_FOUND', '文件不存在。');
+  let part;
+  try {
+    part = await req.file({ limits: { fileSize: MAX_PORTFOLIO_BYTES } });
+  } catch (error) {
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+      return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+    }
+    throw error;
+  }
+  if (!part) return fail(reply, 400, 'NO_FILE', '没有收到文件。');
+  if (!PORTFOLIO_MIME.some((re) => re.test(part.mimetype))) {
+    part.file.resume();
+    return fail(reply, 415, 'UNSUPPORTED_FILE', '作品集只支持 PDF、ZIP、图片和 MP4/WebM。');
+  }
+  const originalName = safeName(part.filename) || old.original_name || 'portfolio-file';
+  const filename = `${old.id}-${crypto.randomUUID()}${extensionFor(originalName, part.mimetype)}`;
+  const target = path.join(PORTFOLIO_DIR, filename);
+  try {
+    await pipeline(part.file, fs.createWriteStream(target, { flags: 'wx' }));
+  } catch (error) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE' || part.file.truncated) {
+      return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+    }
+    throw error;
+  }
+  if (part.file.truncated) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 413, 'FILE_TOO_LARGE', `文件不能超过 ${MAX_PORTFOLIO_MB}MB。`);
+  }
+  const stat = fs.statSync(target);
+  if (!stat.size) {
+    try { fs.unlinkSync(target); } catch { /* ignore */ }
+    return fail(reply, 400, 'EMPTY_FILE', '文件是空的。');
+  }
+  const item = replacePortfolioFile(old.id, {
+    filename,
+    originalName,
+    mime: part.mimetype,
+    size: stat.size,
+  });
+  try { fs.unlinkSync(path.join(PORTFOLIO_DIR, old.filename)); } catch { /* old file already gone */ }
   return { item: portfolioView(item) };
 });
 

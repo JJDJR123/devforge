@@ -58,8 +58,11 @@ export function PortfolioView() {
   const [maxBytes, setMaxBytes] = useState(MAX_MB * 1024 * 1024);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
+  const [replaceProgress, setReplaceProgress] = useState<{ id: string; loaded: number; total: number } | null>(null);
   const [editing, setEditing] = useState<{ id: string; title: string; description: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const replaceIdRef = useRef<string | null>(null);
 
   async function load() {
     try {
@@ -114,8 +117,27 @@ export function PortfolioView() {
     }
   }
 
-  async function toggleVisible(item: PortfolioItem) {
+  async function replaceFile(file: File | undefined) {
+    const id = replaceIdRef.current;
+    if (!file || !id) return;
+    if (file.size > maxBytes) {
+      toast(`文件不能超过 ${Math.round(maxBytes / 1024 / 1024)}MB。`, 'error');
+      return;
+    }
+    setReplaceProgress({ id, loaded: 0, total: file.size });
     try {
+      await api.replacePortfolioFile(id, file, (loaded, total) => setReplaceProgress({ id, loaded, total }));
+      toast('文件已替换，下载链接保持不变。', 'success');
+      await load();
+    } catch (error) {
+      toast(getErrorMessage(error), 'error');
+    } finally {
+      setReplaceProgress(null);
+      replaceIdRef.current = null;
+    }
+  }
+
+  async function toggleVisible(item: PortfolioItem) {    try {
       const result = await api.updatePortfolio(item.id, { visible: !item.visible });
       setItems((current) => current.map((entry) => entry.id === item.id ? result.item : entry));
     } catch (error) {
@@ -211,6 +233,17 @@ export function PortfolioView() {
           hidden
           onChange={(event) => { chooseFile(event.target.files?.[0]); event.target.value = ''; }}
         />
+        <input
+          ref={replaceInputRef}
+          type="file"
+          accept={ACCEPT}
+          hidden
+          onChange={(event) => {
+            const selected = event.target.files?.[0];
+            event.target.value = '';
+            void replaceFile(selected);
+          }}
+        />
         <button type="button" className="btn btn-ghost" onClick={() => inputRef.current?.click()} disabled={busy}>
           <Plus size={15} /> 选择文件
         </button>
@@ -259,9 +292,25 @@ export function PortfolioView() {
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
                       <span className="portfolio-meta">{item.originalName} · {formatRelativeTime(item.createdAt)}</span>
+                      {replaceProgress?.id === item.id ? (
+                        <span className="portfolio-replace-status">
+                          替换中 {Math.round((replaceProgress.loaded / Math.max(1, replaceProgress.total)) * 100)}% · {bytes(replaceProgress.loaded)} / {bytes(replaceProgress.total)}
+                        </span>
+                      ) : null}
                       <div className="portfolio-item-actions">
                         <a className="btn btn-ghost btn-sm" href={item.downloadUrl}><Download size={14} /> 下载</a>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => { void copyDownload(item); }}><Copy size={14} /> 复制直链</button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={replaceProgress?.id === item.id}
+                          onClick={() => {
+                            replaceIdRef.current = item.id;
+                            replaceInputRef.current?.click();
+                          }}
+                        >
+                          <Upload size={14} /> 替换文件
+                        </button>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing({ id: item.id, title: item.title, description: item.description })}>编辑</button>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => { void toggleVisible(item); }}>{item.visible ? <><EyeOff size={14} /> 隐藏</> : <><Eye size={14} /> 显示</>}</button>
                         <button type="button" className="btn btn-ghost btn-sm is-danger" onClick={() => { void remove(item); }}><Trash2 size={14} /> 删除</button>
