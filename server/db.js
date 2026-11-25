@@ -371,6 +371,20 @@ function migrate() {
     `);
   }
 
+  if (version < 17) {
+    const savedTheme = db.prepare("SELECT value FROM settings WHERE key = 'theme'").get();
+    if (savedTheme?.value) {
+      try {
+        const theme = JSON.parse(savedTheme.value);
+        if (theme?.preset === 'forge' && String(theme.accent || '').toLowerCase() === '#c8f76a') {
+          db.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = 'theme'")
+            .run(JSON.stringify({ ...theme, accent: '#f16436', radius: 6, grid: false, glow: false }), now());
+        }
+      } catch { /* keep malformed legacy theme untouched */ }
+    }
+    db.exec('PRAGMA user_version = 17;');
+  }
+
   const stamp = now();
   db.prepare('INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)')
     .run('theme', JSON.stringify(DEFAULT_THEME), stamp);
