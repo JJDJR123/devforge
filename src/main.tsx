@@ -6,6 +6,7 @@ import '@blocknote/mantine/style.css';
 import './styles/global.css';
 import './styles/editor.css';
 import './styles/forge-shell.css';
+import './styles/chat-emoji.css';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';

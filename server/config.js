@@ -59,6 +59,4 @@ export const DEFAULT_THEME = {
   radius: 6,
   fontScale: 100,
   density: 'comfortable',
-  grid: false,
-  glow: false,
 };

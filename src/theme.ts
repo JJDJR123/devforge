@@ -58,8 +58,6 @@ export const THEME_DEFAULTS: Theme = {
   radius: 6,
   fontScale: 100,
   density: 'comfortable',
-  grid: false,
-  glow: false,
 };
 
 export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme {
@@ -82,8 +80,6 @@ export function normalizeTheme(value: Partial<Theme> | null | undefined): Theme 
     radius,
     fontScale,
     density: value?.density === 'compact' ? 'compact' : 'comfortable',
-    grid: value?.grid !== false,
-    glow: value?.glow !== false,
   };
 }
 
@@ -109,8 +105,6 @@ export function applyTheme(theme: Theme) {
   const [r, g, b] = hexToRgb(normalized.accent);
   root.dataset.preset = normalized.preset;
   root.dataset.density = normalized.density;
-  root.dataset.grid = normalized.grid ? 'on' : 'off';
-  root.dataset.glow = normalized.glow ? 'on' : 'off';
   root.style.setProperty('--accent', normalized.accent);
   root.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
   root.style.setProperty('--accent-ink', accentInk(normalized.accent));

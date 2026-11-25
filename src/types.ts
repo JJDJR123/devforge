@@ -185,8 +185,6 @@ export type Theme = {
   radius: number;
   fontScale: number;
   density: 'comfortable' | 'compact';
-  grid: boolean;
-  glow: boolean;
 };
 
 export type SiteSettings = {
