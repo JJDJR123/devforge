@@ -157,3 +157,20 @@
 .update-modal {
   border-radius: var(--radius);
 }
+
+/* Knowledge page: align its header with the Forge page rhythm. */
+.kb {
+  width: min(100%, 1240px);
+  margin: 0 auto;
+  padding: 26px clamp(18px, 3vw, 34px) 32px;
+}
+.kb-head h1 {
+  gap: 9px;
+  font-size: clamp(28px, 3vw, 40px);
+  letter-spacing: -0.05em;
+}
+.kb-head h1 svg { width: 23px; height: 23px; color: var(--accent); }
+.kb-head p { font-size: 11px; color: var(--muted); }
+.kb-head-actions .btn { border-radius: 4px; font-size: 10px; }
+.kb-tabs { gap: 14px; }
+.kb-body { grid-template-columns: 320px 1fr; }

@@ -30,6 +30,21 @@ function usageLabels(asset: AssetItem): string[] {
   return labels;
 }
 
+function AssetPreview({ asset }: { asset: AssetItem }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <a className="asset-preview" href={asset.url} target="_blank" rel="noreferrer">
+      {asset.mime.startsWith('image/') && !failed ? (
+        <img src={asset.url} alt={asset.name} loading="lazy" onError={() => setFailed(true)} />
+      ) : asset.mime.startsWith('image/') ? (
+        <ImageOff size={28} />
+      ) : (
+        <FileText size={30} />
+      )}
+    </a>
+  );
+}
+
 export function AssetsView() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -208,13 +223,7 @@ export function AssetsView() {
                     aria-label={`选择 ${asset.name}`}
                   />
                 </label>
-                <a className="asset-preview" href={asset.url} target="_blank" rel="noreferrer">
-                  {asset.mime.startsWith('image/') ? (
-                    <img src={asset.url} alt={asset.name} loading="lazy" />
-                  ) : (
-                    <FileText size={30} />
-                  )}
-                </a>
+                <AssetPreview asset={asset} />
                 <div className="asset-body">
                   <div className="asset-title-row">
                     <strong title={asset.name}>{asset.name}</strong>
