@@ -174,3 +174,20 @@
 .kb-head-actions .btn { border-radius: 4px; font-size: 10px; }
 .kb-tabs { gap: 14px; }
 .kb-body { grid-template-columns: 320px 1fr; }
+
+/* Nested modules must read smaller than their parent. */
+.side-pages > .side-module {
+  margin-left: 2px;
+  padding-left: 4px;
+  border-left: 1px solid var(--line);
+}
+.side-pages > .side-module .side-module-head { height: 30px; }
+.side-pages > .side-module .side-module-icon {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  font-size: 10px;
+  border-radius: 3px;
+}
+.side-pages > .side-module .side-module-name { font-size: 10.5px; }
+.side-pages > .side-module .side-module-count { font-size: 7.5px; }

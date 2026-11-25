@@ -302,6 +302,23 @@ export function PageView() {
     }
   }
 
+  async function addSiblingPage() {
+    if (!page) return;
+    try {
+      const result = await api.createPage({
+        moduleId: page.moduleId,
+        parentId: page.parentId,
+        title: '未命名页面',
+        icon: '📄',
+      });
+      await refresh();
+      navigate(`/page/${result.page.id}`);
+      toast('同级页面已创建。', 'success');
+    } catch (createError) {
+      toast(getErrorMessage(createError), 'error');
+    }
+  }
+
   async function deletePage() {
     if (!page) return;
     if (titleTimer.current) clearTimeout(titleTimer.current);
@@ -515,9 +532,17 @@ export function PageView() {
               { label: importing ? '正在导入…' : '导入 Markdown（新建子页面）', icon: FileUp, onSelect: () => { if (!importing) { importMode.current = 'child'; importInputRef.current?.click(); } } },
             ]}
           />
-          <button type="button" className="btn btn-ghost btn-sm page-add-child" onClick={() => { void addSubpage(); }}>
-            <FilePlus2 size={15} /> 子页面
-          </button>
+          <DropdownMenu
+            trigger={(
+              <button type="button" className="btn btn-ghost btn-sm page-add-child">
+                <FilePlus2 size={15} /> 新建页面
+              </button>
+            )}
+            items={[
+              { label: '同级页面（当前层级）', icon: FilePlus2, onSelect: () => { void addSiblingPage(); } },
+              { label: '子页面（缩进一层）', icon: FilePlus2, onSelect: () => { void addSubpage(); } },
+            ]}
+          />
           <input
             ref={importInputRef}
             type="file"
@@ -539,6 +564,7 @@ export function PageView() {
               { label: importing ? '正在导入…' : '导入 Markdown（新建子页面）', icon: FileUp, onSelect: () => { if (!importing) { importMode.current = 'child'; importInputRef.current?.click(); } } },
               { label: '导出 Markdown', icon: Download, onSelect: exportMarkdown },
               { label: '复制页面链接', icon: Copy, onSelect: () => { void copyLink(); } },
+              { label: '新建同级页面', icon: FilePlus2, onSelect: () => { void addSiblingPage(); } },
               { label: '新建子页面', icon: FilePlus2, onSelect: () => { void addSubpage(); } },
               { label: '', separator: true, onSelect: () => undefined },
               { label: '删除页面', icon: Trash2, danger: true, onSelect: () => { void deletePage(); } },
