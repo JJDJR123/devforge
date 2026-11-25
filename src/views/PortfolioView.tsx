@@ -19,7 +19,7 @@ import { copyText, formatRelativeTime, getErrorMessage } from '../utils';
 import '../styles/portfolio.css';
 
 const ACCEPT = '.pdf,.zip,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.webm';
-const MAX_MB = 100;
+const MAX_MB = 200;
 
 function bytes(size: number) {
   if (size < 1024) return `${size} B`;
@@ -55,6 +55,7 @@ export function PortfolioView() {
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [maxBytes, setMaxBytes] = useState(MAX_MB * 1024 * 1024);
   const [dragging, setDragging] = useState(false);
   const [editing, setEditing] = useState<{ id: string; title: string; description: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +64,7 @@ export function PortfolioView() {
     try {
       const result = await api.adminPortfolio();
       setItems(result.items);
+      if (result.maxBytes) setMaxBytes(result.maxBytes);
     } catch (error) {
       toast(getErrorMessage(error), 'error');
     } finally {
@@ -74,8 +76,8 @@ export function PortfolioView() {
 
   function chooseFile(next: File | undefined) {
     if (!next) return;
-    if (next.size > MAX_MB * 1024 * 1024) {
-      toast(`文件不能超过 ${MAX_MB}MB。`, 'error');
+    if (next.size > maxBytes) {
+      toast(`文件不能超过 ${Math.round(maxBytes / 1024 / 1024)}MB。`, 'error');
       return;
     }
     setFile(next);
@@ -184,7 +186,7 @@ export function PortfolioView() {
         <div className="portfolio-upload-icon"><Upload size={22} /></div>
         <div className="portfolio-upload-main">
           <strong>{file ? file.name : '拖入文件，或点击选择'}</strong>
-          <span>PDF / ZIP / 图片 / MP4 / WebM · 单文件最多 {MAX_MB}MB</span>
+          <span>PDF / ZIP / 图片 / MP4 / WebM · 单文件最多 {Math.round(maxBytes / 1024 / 1024)}MB</span>
         </div>
         <input
           ref={inputRef}

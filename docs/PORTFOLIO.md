@@ -12,7 +12,8 @@
 - 公开页只显示 `visible = 1` 的文件
 - 公开页带 `noindex,nofollow,noarchive`
 - 文件不经过图片压缩，原文件保存在 `data/portfolio/`
-- 默认单文件上限 100MB，可用 `MAX_PORTFOLIO_MB` 调整
+- 默认单文件上限 200MB，可用 `MAX_PORTFOLIO_MB` 调整
+- 如果前面有 Nginx，`client_max_body_size` 必须不小于该值（仓库配置为 220m）
 - 支持 PDF、ZIP、图片、MP4、WebM；HTML/SVG 等可执行内容不接受
 
 ## 数据库
