@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from './state/AppContext';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthScreen } from './components/AuthScreen';
@@ -21,6 +21,7 @@ function readEntryMode(): EntryMode {
 export function App() {
   const { phase, data, user } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const [entryMode, setEntryMode] = useState<EntryMode>(readEntryMode);
   const isAdminEntry = location.pathname.replace(/\/+$/, '') === '/admin';
   const isApplyEntry = location.pathname.replace(/\/+$/, '') === '/apply';
@@ -55,15 +56,26 @@ export function App() {
     return <PublicApp member />;
   }
   if (phase === 'login') {
+    const enterGuest = () => {
+      rememberEntry('guest');
+      navigate('/', { replace: true });
+    };
     if (isAdminEntry) {
-      return <AuthScreen mode="login" onLoginSuccess={() => rememberEntry('admin')} />;
+      return (
+        <AuthScreen
+          mode="login"
+          allowGuest
+          onGuest={enterGuest}
+          onLoginSuccess={() => rememberEntry('admin')}
+        />
+      );
     }
     if (entryMode === 'guest') return <PublicApp />;
     return (
       <AuthScreen
         mode="login"
         allowGuest
-        onGuest={() => rememberEntry('guest')}
+        onGuest={enterGuest}
         onLoginSuccess={() => rememberEntry('admin')}
       />
     );
