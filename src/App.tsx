@@ -35,6 +35,12 @@ export function App() {
     setEntryMode(mode);
   }
 
+  function exitGuest() {
+    sessionStorage.removeItem(ENTRY_KEY);
+    setEntryMode(null);
+    navigate('/admin', { replace: true });
+  }
+
   useEffect(() => {
     // Entering through /admin with an existing session should keep the admin
     // in admin mode when they later navigate to /.
@@ -70,7 +76,7 @@ export function App() {
         />
       );
     }
-    if (entryMode === 'guest') return <PublicApp />;
+    if (entryMode === 'guest') return <PublicApp onExitGuest={exitGuest} />;
     return (
       <AuthScreen
         mode="login"
@@ -84,7 +90,7 @@ export function App() {
     if (isForgePreview) return <Navigate to="/" replace />;
     if (preview && !isAdminEntry) return <PublicApp preview />;
     if (isAdminEntry) return <Shell />;
-    if (entryMode === 'guest') return <PublicApp />;
+    if (entryMode === 'guest') return <PublicApp onExitGuest={exitGuest} />;
     if (entryMode === 'admin') return <Shell />;
     return (
       <AuthScreen

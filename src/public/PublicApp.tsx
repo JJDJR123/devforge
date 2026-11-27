@@ -53,7 +53,7 @@ function readCollapsed(): Set<string> {
   return new Set();
 }
 
-export function PublicApp({ preview = false, member = false }: { preview?: boolean; member?: boolean }) {
+export function PublicApp({ preview = false, member = false, onExitGuest }: { preview?: boolean; member?: boolean; onExitGuest?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useApp();
@@ -209,7 +209,14 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
                 </button>
               </div>
             ) : (
-              <span className="public-topbar-badge"><Eye size={12} /> 游客 · 只读</span>
+              <div className="public-member-actions">
+                <span className="public-topbar-badge"><Eye size={12} /> 游客 · 只读</span>
+                {onExitGuest ? (
+                  <button type="button" className="public-member-link" onClick={onExitGuest}>
+                    <LogOut size={13} /> 退出游客
+                  </button>
+                ) : null}
+              </div>
             )}
           </div>
         </header>
