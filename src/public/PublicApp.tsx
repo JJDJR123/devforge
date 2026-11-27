@@ -10,6 +10,7 @@ import {
   Globe2,
   Images,
   Inbox,
+  Lock,
   LogOut,
   Menu,
   Megaphone,
@@ -29,6 +30,7 @@ import { ModuleIconContent } from '../components/ModuleIcon';
 import { SearchDialog } from '../components/SearchDialog';
 import { PublicHome } from './PublicHome';
 import { MemberHome } from './MemberHome';
+import { GuestPreview } from './GuestPreview';
 import { PublicModule } from './PublicModule';
 import { PublicPage } from './PublicPage';
 import { MemberKbView } from '../views/MemberKbView';
@@ -39,6 +41,7 @@ import { FriendsView } from '../views/FriendsView';
 import { UpdateModal } from '../components/UpdateModal';
 import { hasUnseenUpdates, markUpdatesSeen } from '../updates';
 import { FEATURES } from '../features';
+import '../styles/public-guest.css';
 
 const COLLAPSE_KEY = 'devforge.public.collapsed';
 
@@ -227,6 +230,10 @@ export function PublicApp({ preview = false, member = false }: { preview?: boole
             {member ? <Route path="/chat" element={<ChatView member />} /> : null}
             {member ? <Route path="/mailbox" element={<MailboxView />} /> : null}
             {member ? <Route path="/friends" element={<FriendsView member />} /> : null}
+            {!member ? <Route path="/kb" element={<GuestPreview feature="kb" />} /> : null}
+            {!member ? <Route path="/chat" element={<GuestPreview feature="chat" />} /> : null}
+            {!member ? <Route path="/mailbox" element={<GuestPreview feature="mailbox" />} /> : null}
+            {!member ? <Route path="/friends" element={<GuestPreview feature="friends" />} /> : null}
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="*" element={<PublicMissing />} />
           </Routes>
@@ -448,6 +455,30 @@ function PublicSidebar({
           <Globe2 size={16} />
           <span>公开首页</span>
         </button>
+        {!member ? (
+          <>
+            <button type="button" className={cn('nav-item is-locked', location.pathname.startsWith('/kb') && 'is-active')} onClick={() => go('/kb')}>
+              <BookOpen size={16} />
+              <span>成员知识库</span>
+              <em>申请</em>
+            </button>
+            <button type="button" className={cn('nav-item is-locked', location.pathname.startsWith('/chat') && 'is-active')} onClick={() => go('/chat')}>
+              <MessageCircle size={16} />
+              <span>成员聊天室</span>
+              <em>申请</em>
+            </button>
+            <button type="button" className={cn('nav-item is-locked', location.pathname.startsWith('/mailbox') && 'is-active')} onClick={() => go('/mailbox')}>
+              <Inbox size={16} />
+              <span>站内信箱</span>
+              <em>申请</em>
+            </button>
+            <button type="button" className={cn('nav-item is-locked', location.pathname.startsWith('/friends') && 'is-active')} onClick={() => go('/friends')}>
+              <UserRound size={16} />
+              <span>好友与私信</span>
+              <em>申请</em>
+            </button>
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar-tree-head">

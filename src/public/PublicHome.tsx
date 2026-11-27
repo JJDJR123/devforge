@@ -1,13 +1,17 @@
 import { useMemo, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowUpRight,
+  BookOpen,
   Eye,
   FileText,
   Globe2,
+  Inbox,
+  MessageCircle,
   Search,
   Sparkles,
+  UserRound,
 } from 'lucide-react';
 import type { PublicBootstrap } from '../types';
 import { ModuleIconContent } from '../components/ModuleIcon';
@@ -122,6 +126,41 @@ export function PublicHome({
         <PublicStat label="公开页面" value={data.stats.pageCount} suffix="篇" foot="可自由浏览" />
         <PublicStat label="累计字数" value={formatNumber(data.stats.chars)} suffix="字" foot="公开笔记" />
         <PublicStat label="最近更新" value={formatRelativeTime(data.stats.updatedAt)} suffix="" foot="持续记录" small />
+      </section>
+
+      <section className="guest-benefits">
+        <div className="guest-benefits-head">
+          <div>
+            <span className="eyebrow"><Sparkles size={12} /> MEMBER ACCESS / 成员权限</span>
+            <h2>申请成员账号后可以做什么</h2>
+            <p>公开内容继续对游客开放；账号通过管理员审批后，会解锁下面这些站内功能。</p>
+          </div>
+          <Link className="btn btn-primary" to="/apply">
+            申请成员账号 <ArrowRight size={15} />
+          </Link>
+        </div>
+        <div className="guest-benefit-grid">
+          <div className="guest-benefit">
+            <BookOpen size={15} />
+            <strong>成员知识库</strong>
+            <span>阅读公开内容之外的拆解、配方和笔记。</span>
+          </div>
+          <div className="guest-benefit">
+            <MessageCircle size={15} />
+            <strong>成员聊天室</strong>
+            <span>和站长、其他成员交流学习进度。</span>
+          </div>
+          <div className="guest-benefit">
+            <Inbox size={15} />
+            <strong>站内信箱</strong>
+            <span>接收更新公告和管理员消息。</span>
+          </div>
+          <div className="guest-benefit">
+            <UserRound size={15} />
+            <strong>好友与私信</strong>
+            <span>添加学习搭子，发文字和图片私信。</span>
+          </div>
+        </div>
       </section>
 
       <div className="dash-columns">
