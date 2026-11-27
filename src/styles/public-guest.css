@@ -34,6 +34,7 @@
 .guest-mock { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .guest-mock-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-family: var(--font-mono); font-size: 8px; }
 .guest-mock-head em { color: var(--faint); font-style: normal; }
+.guest-mock-note { padding: 0 12px 12px; color: var(--faint); font-size: 8px; line-height: 1.5; }
 .guest-chat-mock, .guest-mail-mock, .guest-friend-mock, .guest-kb-mock { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
 .guest-bubble { align-self: flex-start; max-width: 88%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg-soft); }
 .guest-bubble.is-own { align-self: flex-end; border-color: var(--accent-line); background: var(--accent-soft); }

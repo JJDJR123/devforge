@@ -98,9 +98,10 @@ export function GuestPreview({ feature }: { feature: Feature }) {
         <section className="guest-mock" aria-hidden="true">
           <div className="guest-mock-head">
             <span>{meta.title}预览</span>
-            <em>LOCKED</em>
+            <em>LOCKED · 界面示意</em>
           </div>
           <GuestMock feature={feature} />
+          <p className="guest-mock-note">仅示意界面布局，不代表站内实际条目或消息。</p>
         </section>
       </div>
     </div>
@@ -111,9 +112,8 @@ function GuestMock({ feature }: { feature: Feature }) {
   if (feature === 'chat') {
     return (
       <div className="guest-chat-mock">
-        <div className="guest-bubble is-other"><span>成员 A</span><p>这个拆解我按你的思路补完了。</p></div>
-        <div className="guest-bubble is-other"><span>成员 B</span><p>配方里的参数表能分享一下吗？</p></div>
-        <div className="guest-bubble is-own"><span>你（申请后）</span><p>可以，直接在成员知识库里看。</p></div>
+        <div className="guest-bubble is-other"><span>成员消息</span><p>聊天内容登录后可见。</p></div>
+        <div className="guest-bubble is-other"><span>成员消息</span><p>成员发言不会向游客展示。</p></div>
         <div className="guest-mock-input"><Lock size={12} /> 登录后才能发言</div>
       </div>
     );
@@ -121,10 +121,10 @@ function GuestMock({ feature }: { feature: Feature }) {
   if (feature === 'mailbox') {
     return (
       <div className="guest-mail-mock">
-        {['更新公告：本周新增拆解', '管理员：欢迎加入学习舱', '成员私信：一起做原型吗？'].map((title, index) => (
+        {['站内公告', '管理员消息', '成员私信'].map((title) => (
           <div className="guest-mail-row" key={title}>
             <span className="guest-mail-dot" />
-            <span><strong>{title}</strong><em>{index === 0 ? '公告' : '站内消息'} · 登录后查看</em></span>
+            <span><strong>{title}</strong><em>登录后查看</em></span>
             <Lock size={12} />
           </div>
         ))}
@@ -134,10 +134,10 @@ function GuestMock({ feature }: { feature: Feature }) {
   if (feature === 'friends') {
     return (
       <div className="guest-friend-mock">
-        {['学习搭子', '原型搭档', '美术朋友'].map((name) => (
+        {['好友列表', '好友私信', '图片消息'].map((name) => (
           <div className="guest-friend-row" key={name}>
-            <span className="guest-avatar">{name.slice(0, 1)}</span>
-            <span><strong>{name}</strong><em>· 申请后添加</em></span>
+            <span className="guest-avatar"><Lock size={11} /></span>
+            <span><strong>{name}</strong><em>登录后查看</em></span>
             <Lock size={12} />
           </div>
         ))}
@@ -146,14 +146,10 @@ function GuestMock({ feature }: { feature: Feature }) {
   }
   return (
     <div className="guest-kb-mock">
-      {[
-        ['拆解', '横版战斗的打击帧'],
-        ['配方', '角色移动与镜头跟随'],
-        ['笔记', 'Godot 状态机整理'],
-      ].map(([kind, title]) => (
-        <div className="guest-kb-row" key={title}>
+      {['拆解', '配方', '笔记'].map((kind) => (
+        <div className="guest-kb-row" key={kind}>
           <span className="guest-kb-kind">{kind}</span>
-          <span><strong>{title}</strong><em>成员可见 · 登录后阅读</em></span>
+          <span><strong>成员可见条目</strong><em>登录后阅读</em></span>
           <Lock size={12} />
         </div>
       ))}
